@@ -89,6 +89,30 @@ function send(message) {
   if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
 }
 
+function testLocalConnection(server, token) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const probe = new WebSocket(websocketUrl(server, token));
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try { probe.close(); } catch (_) {}
+      resolve(result);
+    };
+    const timer = setTimeout(() => finish({ ok: false, error: `WebSocket timeout for ${server}` }), 6000);
+    probe.addEventListener("open", () => {
+      try {
+        probe.send(JSON.stringify({ type: "hello", profile: "options-check", resume: false }));
+        finish({ ok: true });
+      } catch (_) {
+        finish({ ok: false, error: `WebSocket handshake send failed for ${server}` });
+      }
+    });
+    probe.addEventListener("error", () => finish({ ok: false, error: `WebSocket connection failed for ${server}` }));
+  });
+}
+
 async function currentPlayerTabId() {
   return (await config()).libraryPlayerTabId;
 }
@@ -229,6 +253,12 @@ async function extensionApi(path, method, body) {
 }
 
 browserApi.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === "test-local-connection") {
+    testLocalConnection(String(message.server || DEFAULTS.server), String(message.token || ""))
+      .then(sendResponse)
+      .catch((error) => sendResponse({ ok: false, error: String(error?.message || error) }));
+    return true;
+  }
   if (message?.type === "provider-page-seen") {
     lookupProviderPage(String(message.url || ""))
       .then(sendResponse)

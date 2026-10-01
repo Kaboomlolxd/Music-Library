@@ -72,6 +72,26 @@ async function checkLocalServer(serverAddress, pairingToken) {
   const health = await fetch(new URL("/api/health", serverUrl), { cache: "no-store" });
   if (!health.ok) throw new Error(`The local dashboard responded with HTTP ${health.status}.`);
 
+  const backgroundProbe = await new Promise((resolve) => {
+    let completed = false;
+    const finish = (value) => { if (!completed) { completed = true; resolve(value); } };
+    try {
+      const payload = {
+        type: "test-local-connection",
+        server: serverUrl.origin,
+        token: pairingToken,
+      };
+      if (globalThis.browser) {
+        api.runtime.sendMessage(payload).then(finish).catch(() => finish(null));
+      } else {
+        const result = api.runtime.sendMessage(payload, finish);
+        if (result && typeof result.then === "function") result.then(finish).catch(() => finish(null));
+      }
+      window.setTimeout(() => finish(null), CONNECT_TIMEOUT_MS + 500);
+    } catch (_) { finish(null); }
+  });
+  if (backgroundProbe?.ok) return;
+
   let lastError = null;
   for (const candidate of loopbackCandidates(serverUrl.origin)) {
     try {
@@ -101,7 +121,7 @@ async function checkLocalServer(serverAddress, pairingToken) {
       lastError = error;
     }
   }
-  throw new Error(`${lastError?.message || "WebSocket connection failed"}. HTTP pairing worked; try reloading the extension or allowing local WebSocket connections for 127.0.0.1:8765.`);
+  throw new Error(`${backgroundProbe?.error || lastError?.message || "WebSocket connection failed"}. HTTP pairing worked; the browser extension context could not open the local WebSocket for ${serverUrl.origin}.`);
 }
 
 const server = document.querySelector("#server");
