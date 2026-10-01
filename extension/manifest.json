@@ -1,0 +1,58 @@
+{
+  "manifest_version": 3,
+  "name": "Local Music Library Player",
+  "version": "0.5.0",
+  "description": "Reuses one normal YouTube or Bilibili tab for a paired local music library.",
+  "permissions": ["tabs", "storage"],
+  "host_permissions": [
+    "https://www.youtube.com/*",
+    "https://youtu.be/*",
+    "https://www.bilibili.com/*",
+    "https://b23.tv/*",
+    "http://127.0.0.1/*",
+    "http://localhost/*",
+    "ws://127.0.0.1/*",
+    "ws://localhost/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.youtube.com/*",
+        "https://youtu.be/*",
+        "https://www.bilibili.com/*",
+        "https://b23.tv/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "action": {
+    "default_title": "Configure Local Music Library Player",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "local-music-library-player@local",
+      "strict_min_version": "121.0"
+    }
+  }
+}

@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.venv/
+bili2yt-state.json
+*.mp4
+*.part
+*.tmp
+dist/
+.test-live-data/
+graphify-out/
+server-*.log
+.agents/

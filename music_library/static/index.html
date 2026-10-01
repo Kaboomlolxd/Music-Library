@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Local Music Library</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="brand-lockup">
+        <div class="brand-mark" aria-hidden="true">♫</div>
+        <div>
+        <p class="eyebrow">LOCAL · LINKS &amp; METADATA ONLY</p>
+        <h1>Music Library</h1>
+        </div>
+      </div>
+      <div class="header-status">
+        <span class="stats-chip"><span class="status-dot" aria-hidden="true"></span><span id="stats">Starting…</span></span>
+        <button class="secondary" id="export-button">Regenerate exports</button>
+      </div>
+    </header>
+    <nav class="view-nav" aria-label="Primary">
+      <div class="nav-group">
+        <span class="nav-label">Browse</span>
+        <button class="view-link active" data-view="home">Home</button>
+        <button class="view-link" data-view="library">Library</button>
+        <button class="view-link" data-view="playlists">Playlists</button>
+        <button class="view-link" data-view="queue">Queue</button>
+      </div>
+      <div class="nav-group">
+        <span class="nav-label">Build</span>
+        <button class="view-link" data-view="imports">Imports</button>
+        <button class="view-link" data-view="discover">Discover</button>
+        <button class="view-link" data-view="subscriptions">Subscriptions</button>
+      </div>
+      <div class="nav-group">
+        <span class="nav-label">Keep tidy</span>
+        <button class="view-link" data-view="maintenance">Maintenance</button>
+        <button class="view-link" data-view="backups">Backups</button>
+        <button class="view-link" data-view="settings">Settings</button>
+      </div>
+    </nav>
+
+    <main class="layout">
+      <aside class="sidebar">
+        <section>
+          <p class="sidebar-label">Your library</p>
+          <div class="section-heading">
+            <h2>Playlists</h2>
+            <button class="icon" id="new-playlist-button" title="New playlist">+</button>
+            <button class="icon" id="new-rating-playlist-button" title="New rating playlist">★</button>
+          </div>
+          <button class="playlist-link active" data-playlist-id="">All Library</button>
+          <div id="playlist-list" class="stack-list"></div>
+        </section>
+
+        <section>
+          <p class="sidebar-label">Saved views</p>
+          <div class="section-heading">
+            <h2>Saved pools</h2>
+            <button class="icon" id="save-pool-button" title="Save the current selection as a pool">+</button>
+          </div>
+          <div id="pool-list" class="stack-list muted">No saved pools yet.</div>
+        </section>
+
+        <section>
+          <p class="sidebar-label">People</p>
+          <div class="section-heading">
+            <h2>Creators / producers</h2>
+          </div>
+          <div id="creator-list" class="stack-list muted">No creators detected yet.</div>
+        </section>
+
+        <section>
+          <p class="sidebar-label">Automation</p>
+          <div class="section-heading">
+            <h2>Subscriptions</h2>
+            <button class="icon" id="new-subscription-button" title="Subscribe to a channel or playlist">+</button>
+          </div>
+          <div id="subscription-list" class="stack-list muted">No subscriptions yet.</div>
+        </section>
+
+        <section class="sidebar-actions">
+          <p class="sidebar-label">Tools</p>
+          <button id="duplicates-button">Possible duplicates</button>
+          <button id="sources-button">Sources &amp; refresh</button>
+          <button id="history-button">Playback history</button>
+          <button id="trash-button">Trash &amp; undo</button>
+          <a href="/library.md" target="_blank">Open Markdown export</a>
+          <a href="/library.txt" target="_blank">Open text export</a>
+        </section>
+      </aside>
+
+      <section class="workspace">
+        <section class="panel import-panel" data-view-panel="imports home">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">IMPORT</p>
+              <h2>Bring in YouTube or Bilibili links</h2>
+            </div>
+            <span class="muted">Channels, playlists, and videos</span>
+          </div>
+          <form id="import-form">
+            <textarea id="import-urls" required placeholder="Paste one or more YouTube or Bilibili URLs — one per line"></textarea>
+            <div class="form-row import-options">
+              <label>Local playlist
+                <select id="import-playlist" required></select>
+              </label>
+              <label>New playlist (optional)
+                <input id="new-import-playlist" placeholder="Create instead">
+              </label>
+              <label>Min. views
+                <input id="min-views" placeholder="e.g. 100k" inputmode="decimal">
+              </label>
+              <label>Max items
+                <input id="max-items" type="number" min="1" placeholder="No limit">
+              </label>
+              <label>Cookies from browser
+                <input id="cookies-browser" placeholder="zen, chrome, chrome:Default">
+              </label>
+              <label>Source synchronization
+                <select id="sync-policy">
+                  <option value="append_only">Append only</option>
+                  <option value="mirror">Mirror source membership</option>
+                  <option value="mirror_preserve_local_removals">Mirror, preserve local removals</option>
+                </select>
+              </label>
+            </div>
+            <div class="form-row checks">
+              <label><input type="checkbox" id="include-unknown-views"> Keep unavailable-view items when filtering</label>
+              <label><input type="checkbox" id="refresh-views"> Refresh missing views/metadata (slower)</label>
+              <label><input type="checkbox" id="youtube-popular"> YouTube channels: Popular tab</label>
+              <button type="submit">Import metadata</button>
+            </div>
+          </form>
+          <p id="import-status" class="status" aria-live="polite"></p>
+          <div id="import-progress-wrap" class="import-progress" hidden>
+            <progress id="import-progress" max="1" value="0"></progress>
+            <span id="import-progress-label" class="muted"></span>
+          </div>
+        </section>
+        <section class="panel jobs-panel" data-view-panel="imports home">
+          <div class="section-heading"><div><p class="eyebrow">JOB HISTORY</p><h2>Imports and updates</h2></div><button id="jobs-refresh-button">Refresh</button></div>
+          <div id="jobs-list" class="stack-list muted">No jobs yet.</div>
+        </section>
+
+        <section class="panel queue-panel" data-view-panel="queue home">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">QUEUE</p>
+              <h2 id="now-title">Nothing queued</h2>
+              <p id="now-creator" class="muted">Build a queue from all library, a playlist, a pool, or selected tracks.</p>
+            </div>
+            <div class="queue-controls">
+              <button id="previous-button" title="Previous">‹</button>
+              <button id="play-button">Play / open in browser</button>
+              <button id="pause-button" class="secondary">Pause</button>
+              <button id="stop-button" class="secondary">Stop</button>
+              <button id="next-button" title="Next">›</button>
+              <button id="clear-queue-button" class="secondary" title="Clear queue">Clear</button>
+            </div>
+          </div>
+          <div class="queue-build">
+            <label>Playlist pool
+              <select id="pool-playlists" multiple size="3" aria-label="Playlists to include in queue pool"></select>
+            </label>
+            <label>Shuffle
+              <select id="shuffle-mode">
+                <option value="true">True shuffle</option>
+                <option value="variety">Variety by uploader</option>
+              </select>
+            </label>
+            <label>Uploader spacing
+              <input id="creator-cooldown" type="number" min="0" max="20" value="4">
+            </label>
+            <label>Uploader filter
+              <input id="creator-filter" placeholder="Any uploader">
+            </label>
+            <label><input id="include-repeats" type="checkbox"> Include duplicate copies</label>
+            <button id="queue-selection-button">Queue current selection</button>
+          </div>
+          <div class="rating-bar">
+            <label for="now-rating">Rate current track (0–10)</label>
+            <input id="now-rating" inputmode="decimal" placeholder="—" aria-label="Rate current track from 0 to 10">
+            <span id="player-status" class="muted">Without the extension, Play opens the provider in your browser. The browser controls sound and autoplay.</span>
+          </div>
+          <ol id="queue-preview" class="queue-preview"></ol>
+        </section>
+
+        <section class="panel library-panel" data-view-panel="library home">
+          <div class="section-heading library-heading">
+            <div>
+              <p class="eyebrow">LIBRARY</p>
+              <h2 id="library-heading">All Library</h2>
+            </div>
+            <span id="result-count" class="muted"></span>
+          </div>
+          <div class="library-tools">
+            <div class="library-search-row">
+              <div class="search-field">
+                <span class="search-icon" aria-hidden="true">⌕</span>
+                <input id="track-search" type="search" placeholder="Search title, uploader, artist, album, tags, notes…">
+              </div>
+              <select id="provider-filter" aria-label="Filter by provider">
+                <option value="">All providers</option>
+                <option value="youtube">YouTube</option>
+                <option value="bilibili">Bilibili</option>
+              </select>
+              <button id="clear-selection-button" class="secondary">Clear selected</button>
+              <button id="remove-selected-button" class="danger" disabled>Delete selected</button>
+              <select id="selection-playlist" aria-label="Playlist for selected tracks">
+                <option value="">Add selected to playlist…</option>
+              </select>
+              <button id="add-selected-button" disabled>Add selected</button>
+            </div>
+            <details class="filter-drawer">
+              <summary><span>Filters &amp; sorting</span><span class="filter-summary">Refine this view</span></summary>
+              <div class="filter-grid">
+                <input id="creator-library-filter" type="search" placeholder="Filter uploader">
+                <input id="artist-library-filter" type="search" placeholder="Filter artist">
+                <input id="album-library-filter" type="search" placeholder="Filter album">
+                <input id="genre-library-filter" type="search" placeholder="Filter genre">
+                <select id="availability-filter">
+                  <option value="">Any availability</option>
+                  <option value="available">Available</option>
+                  <option value="unavailable">Unavailable</option>
+                  <option value="private">Private</option>
+                  <option value="deleted">Deleted</option>
+                </select>
+                <input id="rating-filter" type="number" min="0" max="10" step="0.1" placeholder="Min rating">
+                <input id="min-duration-filter" type="number" min="0" step="1" placeholder="Min seconds">
+                <input id="max-duration-filter" type="number" min="0" step="1" placeholder="Max seconds">
+                <input id="min-views-filter" type="number" min="0" step="1" placeholder="Min views">
+                <input id="max-views-filter" type="number" min="0" step="1" placeholder="Max views">
+                <select id="override-filter">
+                  <option value="">Any metadata source</option>
+                  <option value="true">User-overridden</option>
+                  <option value="false">Provider-only</option>
+                </select>
+                <label class="sort-control">Sort
+                  <select id="track-sort">
+                    <option value="creator">Uploader</option>
+                    <option value="title">Title</option>
+                    <option value="provider">Provider</option>
+                    <option value="artist">Artist</option>
+                    <option value="album">Album</option>
+                    <option value="genre">Genre</option>
+                    <option value="views">Views</option>
+                    <option value="rating">Rating</option>
+                    <option value="duration">Duration</option>
+                    <option value="position">Playlist order</option>
+                    <option value="least_recently_played">Least recently played</option>
+                    <option value="last_played">Last played (old → recent)</option>
+                    <option value="date_added">Date added</option>
+                  </select>
+                </label>
+                <label class="sort-control">Order
+                  <select id="track-order">
+                    <option value="asc">A → Z / low → high</option>
+                    <option value="desc">Z → A / high → low</option>
+                  </select>
+                </label>
+              </div>
+              <div class="filter-actions">
+                <button id="save-search-button" class="secondary">Save this search</button>
+                <select id="saved-search-select"><option value="">Saved searches…</option></select>
+              </div>
+            </details>
+          </div>
+          <details class="bulk-editor">
+            <summary>Bulk metadata editor</summary>
+            <p class="muted">Build one or more operations, preview the exact changes, then apply them as one undoable action. Uses the selected tracks.</p>
+            <div class="filters">
+              <select id="bulk-operation-type">
+                <option value="set">Set value</option>
+                <option value="clear">Clear field</option>
+                <option value="provider_refresh">Enable/disable provider refresh</option>
+                <option value="find_replace">Find and replace</option>
+                <option value="regex_replace">Regex replacement</option>
+                <option value="exact_normalize">Exact-match normalization</option>
+                <option value="tags_add">Add tags/aliases</option>
+                <option value="tags_remove">Remove tags/aliases</option>
+                <option value="tags_replace">Replace tags/aliases</option>
+                <option value="copy_from_track">Copy from one track</option>
+              </select>
+              <select id="bulk-field">
+                <option value="artist">Artist</option><option value="album">Album</option>
+                <option value="album_artist">Album artist</option><option value="composer">Composer</option>
+                <option value="featured_artists">Featured artists</option><option value="release_year">Release year</option>
+                <option value="genre">Genre</option><option value="tags">Tags</option>
+                <option value="notes">Notes</option><option value="aliases">Aliases</option>
+                <option value="artwork_url">Artwork URL</option><option value="availability">Availability</option>
+                <option value="version">Version/mix</option><option value="bpm">BPM</option>
+                <option value="musical_key">Musical key</option><option value="language">Language</option>
+                <option value="isrc">ISRC</option>
+              </select>
+              <input id="bulk-value" placeholder="Value, comma-separated values, or exact match">
+              <input id="bulk-replacement" placeholder="Replacement">
+              <input id="bulk-source-track" type="number" min="1" placeholder="Source track ID">
+              <label><input id="bulk-refresh-enabled" type="checkbox" checked> Provider refresh enabled</label>
+              <label><input id="bulk-ignore-case" type="checkbox"> Regex ignore case</label>
+              <button id="bulk-add-operation" type="button" class="secondary">Add operation</button>
+            </div>
+            <div id="bulk-operation-list" class="stack-list muted">No operations added.</div>
+            <div class="button-row">
+              <button id="bulk-preview-button" type="button">Preview selected</button>
+              <button id="bulk-apply-button" type="button" disabled>Apply preview</button>
+              <button id="bulk-undo-button" type="button" class="secondary" disabled>Undo last bulk edit</button>
+            </div>
+            <div id="bulk-preview" class="stack-list muted">No preview yet.</div>
+          </details>
+          <div class="table-wrap library-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th><input type="checkbox" id="select-page" aria-label="Select page"></th>
+                  <th>Uploader / channel</th>
+                  <th>Title</th>
+                  <th>Provider</th>
+                  <th>Rating</th>
+                  <th>Views</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="track-list"></tbody>
+            </table>
+          </div>
+          <button id="load-more-button" class="secondary">Load more</button>
+        </section>
+
+        <section class="panel merge-panel" data-view-panel="playlists">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">MERGE</p>
+              <h2>Create a deduplicated merged playlist</h2>
+            </div>
+          </div>
+          <div class="form-row">
+            <label>Add source playlist
+              <select id="merge-source"></select>
+            </label>
+            <button id="merge-add-button" type="button">Add in order</button>
+            <label>New merged playlist
+              <input id="merge-name" placeholder="Merged playlists">
+            </label>
+            <label>Set operation
+              <select id="playlist-set-operation"><option value="union">Union</option><option value="intersection">Intersection</option><option value="difference">Difference</option><option value="symmetric_difference">Symmetric difference</option></select>
+            </label>
+            <label><input type="checkbox" id="merge-archive"> Archive source playlists after merging</label>
+            <button id="merge-button" type="button">Merge</button>
+            <button id="playlist-set-button" type="button">Create set playlist</button>
+          </div>
+          <div id="merge-order" class="merge-order muted">Add playlists above. The first one has priority.</div>
+        </section>
+
+        <section class="panel pairing-panel" data-view-panel="settings home">
+          <div>
+            <p class="eyebrow">LIBRARY PLAYER EXTENSION</p>
+            <h2>Pair Chrome or Zen/Firefox</h2>
+            <p>Install the unpacked extension, set the local server address and token, then click “Open in Library Player.” One browser tab is reused for every queue item.</p>
+          </div>
+          <label>Pairing token
+            <input id="pairing-token" readonly>
+          </label>
+          <p id="extension-status" class="status"></p>
+        </section>
+        <section class="panel" data-view-panel="discover">
+          <div class="section-heading"><div><p class="eyebrow">DISCOVER</p><h2>Bounded discovery mix</h2></div>
+            <button id="discover-refresh-button">Refresh mix</button></div>
+          <p class="muted">Find unsaved candidates from channels already represented in your library. Candidates stay temporary until you select and save them.</p>
+          <div class="form-row"><input id="discover-sources" placeholder="Channel or playlist URLs, one per line"><input id="discover-page-size" type="number" min="1" max="500" value="100"><button id="discover-start-button">Start discover</button></div>
+          <div id="discover-status" class="status"></div><div id="discover-list" class="stack-list"></div>
+        </section>
+        <section class="panel" data-view-panel="maintenance">
+          <div class="section-heading"><div><p class="eyebrow">MAINTENANCE</p><h2>Diagnostics and recovery</h2></div><button id="maintenance-refresh-button">Run checks</button></div>
+          <div class="form-row"><button id="relationship-scan-button">Find related songs</button><button id="review-refresh-button">Open review inbox</button></div>
+          <div class="form-row">
+            <input id="fingerprint-track-id" type="number" min="1" placeholder="Track ID">
+            <input id="fingerprint-local-path" placeholder="Explicit local audio file path">
+            <button id="fingerprint-local-button">Fingerprint local file</button>
+          </div>
+          <p class="muted">Fingerprinting is opt-in and local-file-only. Imports and updates never download audio.</p>
+          <div id="maintenance-report" class="stack-list muted">Run checks to inspect missing metadata, stale links, and duplicates.</div>
+          <div id="review-list" class="stack-list"></div>
+        </section>
+        <section class="panel" data-view-panel="backups">
+          <div class="section-heading"><div><p class="eyebrow">BACKUPS</p><h2>Portable snapshots</h2></div><button id="create-backup-button">Create backup</button></div>
+          <div class="form-row"><button id="prune-backups-button" class="secondary">Apply retention policy</button><button id="rollback-restore-button" class="secondary">Rollback last restore</button></div>
+          <div id="backup-list" class="stack-list muted">No backups yet.</div>
+        </section>
+        <section class="panel" data-view-panel="settings">
+          <div class="section-heading"><div><p class="eyebrow">SETTINGS</p><h2>Updates and safety</h2></div><div class="button-row"><button id="save-settings-button">Save settings</button><button id="rotate-pairing-token-button" class="secondary">Rotate pairing token</button></div></div>
+          <div class="form-row"><label>Automation <select id="setting-schedule"><option value="manual">Manual only</option><option value="3h">Every 3 hours</option><option value="daily">Daily</option></select></label><label>Requests/min <input id="setting-rpm" type="number" min="1" value="30"></label><label>Request delay <input id="setting-delay" type="number" min="0" step="0.1" value="1"></label></div>
+          <div class="form-row">
+            <label>Daily backups <input id="setting-backup-daily" type="number" min="0" value="7"></label>
+            <label>Weekly backups <input id="setting-backup-weekly" type="number" min="0" value="8"></label>
+            <label>Monthly backups <input id="setting-backup-monthly" type="number" min="0" value="12"></label>
+            <label>Six-month backups <input id="setting-backup-long-term" type="number" min="1" value="2"></label>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <div id="toast" class="rating-toast" hidden>
+      <span id="toast-label"></span>
+      <input id="toast-rating" inputmode="decimal" placeholder="Rate 0–10">
+      <button id="toast-save-button">Save</button>
+    </div>
+    <div id="dialog" class="dialog" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
+      <div class="dialog-card">
+        <button class="dialog-close" id="dialog-close" aria-label="Close">×</button>
+        <div id="dialog-content"><h2 id="dialog-title">Dialog</h2></div>
+      </div>
+    </div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

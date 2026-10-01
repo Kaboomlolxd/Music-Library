@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Local Music Library Player</title>
+    <style>
+      body { max-width: 720px; margin: 2rem auto; padding: 0 1rem; color: #eff4ff; background: radial-gradient(circle at 80% 0%, #1d355d, transparent 24rem), #0d1427; font: 16px system-ui, sans-serif; }
+      form { display: grid; gap: 1rem; padding: 1.2rem; border: 1px solid #34476f; border-radius: 14px; background: #141e36; box-shadow: 0 14px 40px rgb(0 0 0 / 25%); }
+      label { display: grid; gap: .35rem; } input { padding: .6rem; color: inherit; background: #0b1020; border: 1px solid #415783; border-radius: 8px; }
+      input[readonly] { color: #a9b7d2; background: #101a31; }
+      button { width: max-content; padding: .58rem .85rem; border: 0; border-radius: 8px; font-weight: 700; cursor: pointer; } button:disabled { opacity: .65; cursor: wait; } button.secondary { color: #eff4ff; background: #1c2a49; border: 1px solid #415783; } #status { min-height: 1.25rem; color: #a8ffda; }
+      .button-row { display: flex; flex-wrap: wrap; gap: .55rem; }
+      .detected { display: grid; gap: .25rem; padding: .75rem; border: 1px solid #34476f; border-radius: 8px; background: #0f1930; }
+      .muted { color: #a9b7d2; font-size: .9rem; }
+    </style>
+  </head>
+  <body>
+    <h1>Local Music Library Player</h1>
+    <p class="muted">These settings pair this browser profile to your local library. They are not the library database and contain no provider login credentials.</p>
+    <form id="settings">
+      <label>Local server address <input id="server" required placeholder="http://127.0.0.1:8765"></label>
+      <label>Pairing token <span class="muted">(detected automatically from the local app)</span><input id="token" autocomplete="off"></label>
+      <div class="detected"><strong>Detected browser</strong><span id="browser-family">Checking…</span><span class="muted">This is detected once and remembered in this browser. The profile label below is only a local name.</span></div>
+      <label>Profile label <input id="profile" required placeholder="Personal music"></label>
+      <div class="button-row"><button type="submit">Save and connect</button><button type="button" id="test-connection" class="secondary">Test connection</button><button type="button" id="open-dashboard" class="secondary">Open local dashboard</button><button type="button" id="forget-browser" class="secondary">Forget this browser</button></div>
+      <p id="status"></p>
+    </form>
+    <script src="options.js"></script>
+  </body>
+</html>

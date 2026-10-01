@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "local-music-library"
+version = "0.5.0"
+description = "Local YouTube and Bilibili music library manager"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "yt-dlp>=2025.1.0",
+]
+
+[project.optional-dependencies]
+test = [
+    # Required by this environment's FastAPI TestClient compatibility layer.
+    "httpx2>=0.1.0",
+]
+
+[project.scripts]
+bili2yt = "bili2yt:main"
+music-library = "music_library.__main__:main"
+
+[tool.setuptools.package-data]
+music_library = ["static/*.html", "static/*.js", "static/*.css"]

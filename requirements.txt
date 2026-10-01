@@ -1,0 +1,5 @@
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+# FastAPI's current TestClient dependency; it is only used by offline tests.
+httpx2>=0.1.0
+yt-dlp>=2025.1.0
