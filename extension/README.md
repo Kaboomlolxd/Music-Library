@@ -82,7 +82,10 @@ misleadingly show “appears to be corrupt” for an unsigned development packag
 Start `MusicLibrary.bat` first, leave its terminal open, and use exactly
 `http://127.0.0.1:8765` in the extension—**not** `https://` and not `wss://`.
 Normally no token entry is needed: the extension reads `/api/health`
-automatically and stores the local token in extension storage.
+automatically and stores the local token in extension storage. The Options page
+lets you override the remembered browser connection mode (including Zen) and
+tries both `127.0.0.1` and `localhost` for the WebSocket after HTTP pairing
+succeeds.
 If the terminal prints `WARNING: Invalid HTTP request received`, Zen's
 HTTPS-Only/HTTPS-upgrading feature or another extension is changing the local
 connection into HTTPS. Turn off HTTPS-Only mode for `127.0.0.1` and disable any

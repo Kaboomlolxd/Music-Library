@@ -27,8 +27,12 @@ async function detectedProfile() {
   return globalThis.browser ? "firefox" : "chrome";
 }
 
-async function detectedBrowserFamily() {
+async function detectedBrowserFamily(preferred = "") {
   const existing = await getSettings();
+  if (preferred && preferred !== "auto") {
+    await saveSettings({ browserFamily: preferred });
+    return preferred;
+  }
   if (existing.browserFamily) return existing.browserFamily;
   const family = await detectedProfile();
   await saveSettings({ browserFamily: family });
@@ -52,6 +56,14 @@ function websocketUrl(server, token) {
   return url.toString();
 }
 
+function loopbackCandidates(serverAddress) {
+  const primary = new URL(serverAddress);
+  const candidates = [primary.origin];
+  if (primary.hostname === "127.0.0.1") candidates.push(`http://localhost${primary.port ? `:${primary.port}` : ""}`);
+  if (primary.hostname === "localhost") candidates.push(`http://127.0.0.1${primary.port ? `:${primary.port}` : ""}`);
+  return [...new Set(candidates)];
+}
+
 async function checkLocalServer(serverAddress, pairingToken) {
   const serverUrl = new URL(serverAddress);
   if (serverUrl.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(serverUrl.hostname)) {
@@ -60,36 +72,36 @@ async function checkLocalServer(serverAddress, pairingToken) {
   const health = await fetch(new URL("/api/health", serverUrl), { cache: "no-store" });
   if (!health.ok) throw new Error(`The local dashboard responded with HTTP ${health.status}.`);
 
-  await new Promise((resolve, reject) => {
-    let settled = false;
-    const socket = new WebSocket(websocketUrl(serverUrl.origin, pairingToken));
-    const timer = window.setTimeout(() => finish(new Error("The local server did not complete the WebSocket connection.")), CONNECT_TIMEOUT_MS);
-    const finish = (error) => {
-      if (settled) return;
-      settled = true;
-      window.clearTimeout(timer);
-      try { socket.close(); } catch (_) {}
-      error ? reject(error) : resolve();
-    };
-    socket.addEventListener("open", () => {
-      try {
-        // Use the same first frame as the real background connection. This
-        // also verifies that the token is accepted by the application rather
-        // than only checking that a TCP/WebSocket port is reachable.
-        socket.send(JSON.stringify({
-          type: "hello",
-          profile: "options-check",
-          resume: false,
-        }));
-        finish();
-      } catch (_) {
-        finish(new Error("The local WebSocket opened but could not send its handshake."));
-      }
-    });
-    socket.addEventListener("error", () => finish(new Error(
-      "Could not open the local WebSocket. Reload the updated extension, then disable HTTPS-Only/HTTPS-upgrade for 127.0.0.1 and use http://127.0.0.1:8765."
-    )));
-  });
+  let lastError = null;
+  for (const candidate of loopbackCandidates(serverUrl.origin)) {
+    try {
+      await new Promise((resolve, reject) => {
+        let settled = false;
+        const socket = new WebSocket(websocketUrl(candidate, pairingToken));
+        const timer = window.setTimeout(() => finish(new Error(`WebSocket timeout for ${candidate}`)), CONNECT_TIMEOUT_MS);
+        const finish = (error) => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timer);
+          try { socket.close(); } catch (_) {}
+          error ? reject(error) : resolve();
+        };
+        socket.addEventListener("open", () => {
+          try {
+            socket.send(JSON.stringify({ type: "hello", profile: "options-check", resume: false }));
+            finish();
+          } catch (_) {
+            finish(new Error(`WebSocket handshake send failed for ${candidate}`));
+          }
+        });
+        socket.addEventListener("error", () => finish(new Error(`WebSocket connection failed for ${candidate}`)));
+      });
+      return;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw new Error(`${lastError?.message || "WebSocket connection failed"}. HTTP pairing worked; try reloading the extension or allowing local WebSocket connections for 127.0.0.1:8765.`);
 }
 
 const server = document.querySelector("#server");
@@ -102,7 +114,7 @@ getSettings().then(async (settings) => {
   server.value = settings.server;
   token.value = settings.token;
   const family = await detectedBrowserFamily();
-  browserFamily.textContent = family === "zen" ? "Zen (Firefox engine)" : family[0].toUpperCase() + family.slice(1);
+  browserFamily.value = family || "auto";
   profile.value = settings.profile === "default" ? "Personal" : settings.profile;
   if (token.value) return;
   try {
@@ -124,7 +136,7 @@ document.querySelector("#settings").addEventListener("submit", async (event) => 
     status.textContent = "Finding the local dashboard and checking the connection…";
     if (!pairingToken) pairingToken = await discoverPairing(serverAddress);
     token.value = pairingToken;
-    await saveSettings({ server: serverAddress, token: pairingToken, profile: profile.value.trim() || "Personal", browserFamily: await detectedBrowserFamily() });
+    await saveSettings({ server: serverAddress, token: pairingToken, profile: profile.value.trim() || "Personal", browserFamily: await detectedBrowserFamily(browserFamily.value) });
     try {
       await checkLocalServer(serverAddress, pairingToken);
       status.textContent = "Connected and saved. This browser profile is paired to the local app.";
@@ -149,6 +161,12 @@ document.querySelector("#test-connection").addEventListener("click", async () =>
     status.textContent = "Connection works. Nothing was changed.";
   } catch (error) { status.textContent = error?.message || "Connection test failed."; }
   finally { button.disabled = false; }
+});
+browserFamily.addEventListener("change", async () => {
+  try {
+    await saveSettings({ browserFamily: browserFamily.value });
+    status.textContent = `Browser connection mode saved: ${browserFamily.options[browserFamily.selectedIndex].text}.`;
+  } catch (error) { status.textContent = error?.message || "Could not save browser mode."; }
 });
 document.querySelector("#forget-browser").addEventListener("click", async () => {
   if (!window.confirm("Forget this browser's pairing, player tab, and widget position?")) return;

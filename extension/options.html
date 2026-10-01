@@ -21,7 +21,7 @@
     <form id="settings">
       <label>Local server address <input id="server" required placeholder="http://127.0.0.1:8765"></label>
       <label>Pairing token <span class="muted">(detected automatically from the local app)</span><input id="token" autocomplete="off"></label>
-      <div class="detected"><strong>Detected browser</strong><span id="browser-family">Checking…</span><span class="muted">This is detected once and remembered in this browser. The profile label below is only a local name.</span></div>
+      <div class="detected"><strong>Browser connection mode</strong><label><select id="browser-family"><option value="auto">Detect automatically</option><option value="zen">Zen</option><option value="firefox">Firefox</option><option value="chrome">Chrome / Chromium</option></select></label><span class="muted">The choice is remembered in this browser and can be changed at any time. The profile label below is only a local name.</span></div>
       <label>Profile label <input id="profile" required placeholder="Personal music"></label>
       <div class="button-row"><button type="submit">Save and connect</button><button type="button" id="test-connection" class="secondary">Test connection</button><button type="button" id="open-dashboard" class="secondary">Open local dashboard</button><button type="button" id="forget-browser" class="secondary">Forget this browser</button></div>
       <p id="status"></p>
