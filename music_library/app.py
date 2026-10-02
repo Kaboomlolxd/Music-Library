@@ -191,7 +191,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
                     await export_task
             database.close()
 
-    app = FastAPI(title="Local Music Library", version="0.5.0", lifespan=lifespan)
+    app = FastAPI(title="Local Music Library", version="0.5.1", lifespan=lifespan)
     app.state.library_db = database
     app.state.event_hub = hub
     app.state.metadata_service = MetadataService(database)

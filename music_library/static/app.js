@@ -1052,9 +1052,21 @@ async function loadBackups() {
 async function loadJobs() {
   const jobs = await api("/api/jobs?limit=100");
   const active = new Set(["queued", "running", "waiting_retry"]);
-  $("#jobs-list").innerHTML = jobs.length
-    ? jobs.map((job) => `<div class="list-row"><strong>${escapeHtml(job.label || job.job_type)}</strong><span>${escapeHtml(job.status)} · ${Number(job.completed_count || 0)}/${Number(job.total_count || 0) || "?"}</span><span class="muted">${escapeHtml(job.error || "")}</span>${active.has(job.status) ? `<button data-job-action="pause" data-job-id="${escapeHtml(job.id)}">Pause</button>` : ""}${["paused","failed","waiting_retry"].includes(job.status) ? `<button data-job-action="resume" data-job-id="${escapeHtml(job.id)}">Resume</button>` : ""}</div>`).join("")
-    : "No jobs yet.";
+  const issues = new Set(["paused", "failed"]);
+  const renderJob = (job, includePause = false) => `<div class="list-row"><strong>${escapeHtml(job.label || job.job_type)}</strong><span>${escapeHtml(job.status)} · ${Number(job.completed_count || 0)}/${Number(job.total_count || 0) || "?"}</span><span class="muted">${escapeHtml(job.error || "")}</span>${includePause ? `<button data-job-action="pause" data-job-id="${escapeHtml(job.id)}">Pause</button>` : ""}${issues.has(job.status) ? `<button data-job-action="resume" data-job-id="${escapeHtml(job.id)}">Resume</button>` : ""}</div>`;
+  const currentJobs = jobs.filter((job) => active.has(job.status));
+  const recentIssues = jobs.filter((job) => issues.has(job.status) && job.error);
+  $("#jobs-list").innerHTML = currentJobs.length
+    ? currentJobs.map((job) => renderJob(job, true)).join("")
+    : "No jobs currently.";
+  const issuesWrap = $("#jobs-issues-wrap");
+  const issuesList = $("#jobs-issues");
+  if (issuesWrap && issuesList) {
+    issuesWrap.hidden = !recentIssues.length;
+    issuesList.innerHTML = recentIssues.length
+      ? recentIssues.map((job) => renderJob(job)).join("")
+      : "";
+  }
 }
 async function loadSettings() {
   const settings = await api("/api/settings");

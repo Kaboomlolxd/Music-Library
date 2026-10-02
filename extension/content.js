@@ -377,6 +377,7 @@
     if (!(card instanceof HTMLElement)) return;
     card.querySelectorAll("[data-library-saved-card-badge]").forEach((item) => item.remove());
     card.querySelectorAll("[data-library-marker-for-url]").forEach((item) => item.remove());
+    card.querySelectorAll("[data-library-unsaved-for-url]").forEach((item) => item.remove());
     restoreInlineStyle(card, "outline", "libraryOriginalOutline");
     restoreInlineStyle(card, "outline-offset", "libraryOriginalOutlineOffset");
     for (const thumbnail of card.querySelectorAll("[data-library-saved-positioned]")) {
@@ -398,11 +399,65 @@
     ) || null;
   }
 
+  function titleAnchorFor(card) {
+    if (!(card instanceof Element)) return null;
+    const candidates = [
+      "a#video-title",
+      "a#video-title-link",
+      "a.yt-lockup-metadata-view-model__title",
+      ".bili-video-card__info--tit a",
+      ".bili-video-card__info--tit",
+      ".video-card__info--tit a",
+      ".video-card__title a",
+      ".video-card__title",
+      "a[href*='/watch']",
+      "a[href*='/video/']",
+    ];
+    for (const selector of candidates) {
+      const anchor = [...card.querySelectorAll(selector)].find((item) => {
+        if (!(item instanceof HTMLAnchorElement) || !visible(item)) return false;
+        return Boolean(canonicalProviderUrl(item.href));
+      });
+      if (anchor) return anchor;
+    }
+    return null;
+  }
+
+  function cardTitle(anchor) {
+    return String(anchor?.textContent || "").replace(/\s+/g, " ").trim() || null;
+  }
+
+  function cardCreator(card) {
+    const creator = card?.querySelector("#channel-name a, .bili-video-card__info--author, .up-name, .author, .creator");
+    return String(creator?.textContent || "").replace(/\s+/g, " ").trim() || null;
+  }
+
+  function revealMarker(marker) {
+    marker.style.opacity = "1";
+  }
+
+  function hideMarker(marker) {
+    marker.style.opacity = "0";
+  }
+
+  function addHoverBehavior(card, marker) {
+    if (!(card instanceof HTMLElement) || card.dataset.libraryHoverBound === "true") return;
+    card.dataset.libraryHoverBound = "true";
+    card.addEventListener("mouseenter", () => {
+      card.querySelectorAll("[data-library-marker-for-url]").forEach(revealMarker);
+    });
+    card.addEventListener("mouseleave", () => {
+      card.querySelectorAll("[data-library-marker-for-url]").forEach(hideMarker);
+    });
+    marker.addEventListener("mouseenter", () => revealMarker(marker));
+  }
+
   function markerFor(anchor, url, status) {
     const existing = [...(anchor.parentElement?.querySelectorAll("[data-library-marker-for-url]") || [])]
       .find((item) => item.dataset.libraryMarkerForUrl === url);
     if (existing) {
       existing.title = savedTooltip(status);
+      existing.style.opacity = cardFor(anchor)?.matches(":hover") ? "1" : "0";
       return;
     }
     const marker = document.createElement("span");
@@ -415,9 +470,53 @@
       "border:1px solid rgba(255,255,255,.28)", "border-radius:999px",
       "background:#087448", "color:#fff", "font:700 11px/1.2 system-ui,sans-serif",
       "box-shadow:0 1px 4px rgba(0,0,0,.35)", "vertical-align:middle",
-      "pointer-events:none", "white-space:nowrap",
+      "pointer-events:none", "white-space:nowrap", "opacity:0", "transition:opacity .12s ease",
     ].join(";");
     anchor.insertAdjacentElement("afterend", marker);
+    addHoverBehavior(cardFor(anchor), marker);
+  }
+
+  async function saveCardFromDot(dot, anchor, url, card) {
+    dot.disabled = true;
+    dot.title = "Saving…";
+    try {
+      const result = await message("provider-save-track", {
+        url,
+        title: cardTitle(anchor),
+        creator: cardCreator(card),
+      });
+      if (!result?.saved) throw new Error(result?.error || "The local library rejected this video");
+      pageStatuses.set(url, result);
+      decorateSavedCard(anchor, url, result);
+    } catch (error) {
+      dot.disabled = false;
+      dot.title = `Save failed: ${error?.message || error}`;
+    }
+  }
+
+  function unsavedDotFor(anchor, url, card) {
+    const existing = [...(card?.querySelectorAll("[data-library-unsaved-for-url]") || [])]
+      .find((item) => item.dataset.libraryUnsavedForUrl === url);
+    if (existing) return existing;
+    const dot = document.createElement("button");
+    dot.type = "button";
+    dot.dataset.libraryUnsavedForUrl = url;
+    dot.textContent = "•";
+    dot.title = "Save to Local Music Library";
+    dot.setAttribute("aria-label", "Save to Local Music Library");
+    dot.style.cssText = [
+      "display:inline-flex", "align-items:center", "justify-content:center", "width:17px", "height:17px",
+      "margin-left:5px", "padding:0", "border:1px solid rgba(255,255,255,.45)", "border-radius:50%",
+      "background:#d96b17", "color:#fff", "font:900 17px/12px system-ui,sans-serif", "cursor:pointer",
+      "vertical-align:middle", "box-shadow:0 1px 4px rgba(0,0,0,.35)",
+    ].join(";");
+    dot.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      saveCardFromDot(dot, anchor, url, card);
+    });
+    anchor.insertAdjacentElement("afterend", dot);
+    return dot;
   }
 
   function decorateSavedCard(anchor, url, status) {
@@ -430,43 +529,8 @@
       clearCardDecoration(card);
     }
     card.dataset.librarySavedForUrl = url;
-    if (!("libraryOriginalOutline" in card.dataset)) {
-      card.dataset.libraryOriginalOutline = card.style.getPropertyValue("outline") || "__empty__";
-      card.dataset.libraryOriginalOutlineOffset = card.style.getPropertyValue("outline-offset") || "__empty__";
-    }
-    card.style.setProperty("outline", "2px solid rgba(24, 184, 112, .72)");
-    card.style.setProperty("outline-offset", "-2px");
-
-    const thumbnail = thumbnailFor(card);
-    if (!thumbnail) {
-      markerFor(anchor, url, status);
-      return;
-    }
-    let badge = [...thumbnail.querySelectorAll("[data-library-saved-card-badge]")]
-      .find((item) => item.dataset.librarySavedCardBadge === url);
-    if (!badge) {
-      badge = document.createElement("span");
-      badge.dataset.librarySavedCardBadge = url;
-      badge.textContent = "★ Saved";
-      badge.setAttribute("aria-label", "Already saved in Local Music Library");
-      badge.style.cssText = [
-        "position:absolute", "z-index:2147483646", "top:7px", "left:7px",
-        "display:inline-flex", "align-items:center", "padding:4px 8px",
-        "border:1px solid rgba(255,255,255,.35)", "border-radius:999px",
-        "background:rgba(5,105,63,.96)", "color:#fff",
-        "font:700 11px/1.15 system-ui,sans-serif", "letter-spacing:.02em",
-        "box-shadow:0 2px 7px rgba(0,0,0,.48)", "pointer-events:none",
-        "white-space:nowrap",
-      ].join(";");
-      if (getComputedStyle(thumbnail).position === "static") {
-        thumbnail.dataset.libraryOriginalPosition =
-          thumbnail.style.getPropertyValue("position") || "__empty__";
-        thumbnail.dataset.librarySavedPositioned = "true";
-        thumbnail.style.setProperty("position", "relative");
-      }
-      thumbnail.appendChild(badge);
-    }
-    badge.title = savedTooltip(status);
+    card.querySelectorAll("[data-library-unsaved-for-url]").forEach((item) => item.remove());
+    markerFor(anchor, url, status);
   }
 
   function removeSavedDecoration(anchor, url) {
@@ -480,13 +544,18 @@
   }
 
   function applyPageStatusMarkers(statuses) {
-    for (const anchor of document.querySelectorAll("a[href]")) {
-      if (!visible(anchor)) continue;
+    for (const card of document.querySelectorAll(cardSelectors)) {
+      if (!visible(card)) continue;
+      const anchor = titleAnchorFor(card);
+      if (!anchor) continue;
       const url = canonicalProviderUrl(anchor.href);
       if (!url || !statuses.has(url)) continue;
       const status = statuses.get(url);
       if (status?.saved) decorateSavedCard(anchor, url, status);
-      else removeSavedDecoration(anchor, url);
+      else {
+        removeSavedDecoration(anchor, url);
+        unsavedDotFor(anchor, url, card);
+      }
     }
   }
 
@@ -494,8 +563,10 @@
     applyPageStatusMarkers(pageStatuses);
     const urls = [];
     const seen = new Set();
-    for (const anchor of document.querySelectorAll("a[href]")) {
-      if (urls.length >= 250 || !visible(anchor)) continue;
+    for (const card of document.querySelectorAll(cardSelectors)) {
+      if (urls.length >= 250 || !visible(card)) continue;
+      const anchor = titleAnchorFor(card);
+      if (!anchor) continue;
       const url = canonicalProviderUrl(anchor.href);
       if (!url || seen.has(url)) continue;
       seen.add(url);
@@ -542,6 +613,54 @@
       ((right.videoWidth || right.clientWidth || 0) * (right.videoHeight || right.clientHeight || 0)) -
       ((left.videoWidth || left.clientWidth || 0) * (left.videoHeight || left.clientHeight || 0))
     )[0] || null;
+  }
+
+  function unmuteProvider(video) {
+    if (!video) return;
+    const wasMuted = video.muted || video.volume === 0;
+    try {
+      video.muted = false;
+      video.volume = 1;
+    } catch (_) {}
+    if (!wasMuted) return;
+    const selectors = provider() === "bilibili"
+      ? [
+        ".bpx-player-ctrl-volume-icon",
+        ".bpx-player-ctrl-volume button",
+        ".bpx-player-ctrl-btn[aria-label*='音量']",
+        "button[aria-label*='Unmute' i]",
+      ]
+      : [
+        ".ytp-unmute",
+        ".ytp-mute-button[aria-label*='Unmute' i]",
+        "button[aria-label*='Unmute' i]",
+      ];
+    for (const selector of selectors) {
+      const control = document.querySelector(selector);
+      if (control instanceof HTMLElement && visible(control)) {
+        try { control.click(); } catch (_) {}
+        break;
+      }
+    }
+  }
+
+  async function playProviderVideo(video) {
+    unmuteProvider(video);
+    try {
+      await video.play();
+      return true;
+    } catch (_) {
+      // Providers often install the video element before their controls. Give
+      // the page a short chance to finish setup and try once more.
+      await new Promise((resolve) => window.setTimeout(resolve, 350));
+      unmuteProvider(video);
+      try {
+        await video.play();
+        return true;
+      } catch (_) {
+        return false;
+      }
+    }
   }
 
   function hasFiniteDuration(video) {
@@ -660,18 +779,22 @@
       sendResponse?.({ ok: false, error: "No provider video element was found" });
       return false;
     }
-    if (message.command === "pause") video.pause();
-    if (message.command === "play") video.play().catch(() => {});
-    if (message.command === "play_pause") {
-      if (video.paused) video.play().catch(() => {});
-      else video.pause();
-    }
-    if (message.command === "stop") {
-      video.pause();
-      try { video.currentTime = 0; } catch (_) { /* provider may block seeking */ }
-    }
-    sendResponse?.({ ok: true, paused: video.paused });
-    return false;
+    const command = String(message.command || "");
+    (async () => {
+      let ok = true;
+      if (command === "pause") video.pause();
+      if (command === "play") ok = await playProviderVideo(video);
+      if (command === "play_pause") {
+        if (video.paused) ok = await playProviderVideo(video);
+        else video.pause();
+      }
+      if (command === "stop") {
+        video.pause();
+        try { video.currentTime = 0; } catch (_) { /* provider may block seeking */ }
+      }
+      sendResponse?.({ ok, paused: video.paused, muted: video.muted, command });
+    })().catch((error) => sendResponse?.({ ok: false, error: String(error?.message || error) }));
+    return true;
   });
   window.setInterval(reportRoute, 1000);
   checkSavedStatus();

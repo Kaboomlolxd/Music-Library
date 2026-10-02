@@ -1,6 +1,6 @@
 # Local Music Library
 
-Current release: **0.5.0**. The repository is licensed under PolyForm
+Current release: **0.5.1**. The repository is licensed under PolyForm
 Noncommercial 1.0.0; see `LICENSE`, `CHANGELOG.md`, and `SECURITY.md` before
 redistributing it.
 

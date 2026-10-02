@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Local Music Library Player",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Reuses one normal YouTube or Bilibili tab for a paired local music library.",
   "permissions": ["tabs", "storage"],
   "host_permissions": [

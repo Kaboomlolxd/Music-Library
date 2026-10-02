@@ -142,7 +142,11 @@
         </section>
         <section class="panel jobs-panel" data-view-panel="imports home">
           <div class="section-heading"><div><p class="eyebrow">JOB HISTORY</p><h2>Imports and updates</h2></div><button id="jobs-refresh-button">Refresh</button></div>
-          <div id="jobs-list" class="stack-list muted">No jobs yet.</div>
+          <div id="jobs-list" class="stack-list muted">No jobs currently.</div>
+          <details id="jobs-issues-wrap" class="jobs-issues" hidden>
+            <summary>Recent issues</summary>
+            <div id="jobs-issues" class="stack-list muted"></div>
+          </details>
         </section>
 
         <section class="panel queue-panel" data-view-panel="queue home">

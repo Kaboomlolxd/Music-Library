@@ -5,6 +5,7 @@ const DEFAULTS = {
   server: "http://127.0.0.1:8765",
   token: "",
   profile: "default",
+  browserFamily: "",
   libraryPlayerTabId: null,
   expectedTrack: null,
   widgetPosition: null,
@@ -32,7 +33,9 @@ async function config() {
   return { ...DEFAULTS, ...(await storageGet(DEFAULTS)) };
 }
 
-async function detectedProfile() {
+async function detectedProfile(settings = {}) {
+  const override = String(settings.browserFamily || "").toLowerCase();
+  if (["zen", "firefox", "chrome"].includes(override)) return override;
   const userAgent = String(globalThis.navigator?.userAgent || "").toLowerCase();
   if (userAgent.includes("zen")) return "zen";
   try {
@@ -57,7 +60,7 @@ async function discoverPairing(settings) {
   const token = String(health?.pairing_token || "").trim();
   if (!token) return settings;
   const profile = settings.profile && settings.profile !== "default"
-    ? settings.profile : await detectedProfile();
+    ? settings.profile : await detectedProfile(settings);
   await storageSet({ token, profile });
   return { ...settings, token, profile };
 }
@@ -146,6 +149,26 @@ async function ensurePlayerTab(url) {
   return created;
 }
 
+async function sendPlayerControl(command, attempts = 6) {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const tab = await getTab(await currentPlayerTabId());
+    if (!tab) {
+      send({ type: "blocked", status: "player_tab_missing", detail: "Repair or start the player tab first." });
+      return { ok: false, error: "player_tab_missing" };
+    }
+    try {
+      const result = await browserApi.tabs.sendMessage(tab.id, { type: "library-player-control", command });
+      if (result?.ok !== false) return result || { ok: true };
+    } catch (_) {
+      // The content script is not ready immediately after a provider route
+      // changes. Retry while the tab finishes loading.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 450));
+  }
+  send({ type: "blocked", status: "control_failed", detail: `Could not send ${command} to the provider player.` });
+  return { ok: false, error: "control_failed" };
+}
+
 async function sendHello() {
   const settings = await config();
   const tab = await getTab(settings.libraryPlayerTabId);
@@ -197,6 +220,9 @@ async function connect() {
         });
         try {
           await ensurePlayerTab(message.url);
+          // Navigation and content-script startup are asynchronous. A delayed
+          // play command lets YouTube/Bilibili create their real video element.
+          setTimeout(() => sendPlayerControl("play"), 700);
         } catch (error) {
           send({ type: "blocked", status: "navigation_failed", detail: String(error?.message || error) });
         }
@@ -211,11 +237,7 @@ async function connect() {
           send({ type: "blocked", status: "player_tab_missing", detail: "Repair or start the player tab first." });
           return;
         }
-        try {
-          await browserApi.tabs.sendMessage(tab.id, { type: "library-player-control", command: message.command });
-        } catch (error) {
-          send({ type: "blocked", status: "control_failed", detail: String(error?.message || error) });
-        }
+        await sendPlayerControl(message.command);
       }
     });
     socket.addEventListener("close", async (event) => {
@@ -342,11 +364,19 @@ browserApi.tabs.onRemoved.addListener(async (tabId) => {
   }
 });
 
+browserApi.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
+  if (changeInfo.status !== "complete") return;
+  if (tabId !== await currentPlayerTabId()) return;
+  // A queued navigation should start when the provider page is actually
+  // ready. This also recovers when the first command arrived too early.
+  setTimeout(() => sendPlayerControl("play"), 250);
+});
+
 browserApi.runtime.onInstalled.addListener(() => connect());
 browserApi.runtime.onStartup.addListener(() => connect());
 browserApi.storage.onChanged.addListener((changes, area) => {
   if (area !== "local") return;
-  if (changes.server || changes.token || changes.profile) {
+  if (changes.server || changes.token || changes.profile || changes.browserFamily) {
     if (socket) socket.close();
     connect();
   }
