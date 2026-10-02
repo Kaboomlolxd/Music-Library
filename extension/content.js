@@ -528,6 +528,10 @@
     if (card.dataset.librarySavedForUrl && card.dataset.librarySavedForUrl !== url) {
       clearCardDecoration(card);
     }
+    // Remove decorations left by an older extension build after an update.
+    if (card.querySelector("[data-library-saved-card-badge]") || "libraryOriginalOutline" in card.dataset) {
+      clearCardDecoration(card);
+    }
     card.dataset.librarySavedForUrl = url;
     card.querySelectorAll("[data-library-unsaved-for-url]").forEach((item) => item.remove());
     markerFor(anchor, url, status);
