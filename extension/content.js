@@ -211,7 +211,7 @@
       widget.style.cssText = [
         "position:fixed", "z-index:2147483647", "top:80px", "right:16px",
         "max-width:280px", "padding:10px 12px", "border:1px solid #536da8",
-        "border-radius:10px", "background:rgba(13,20,39,.96)", "color:#edf2ff",
+        "border-radius:0", "background:rgba(13,20,39,.96)", "color:#edf2ff",
         "font:13px system-ui,sans-serif", "box-shadow:0 8px 24px rgba(0,0,0,.35)",
         "pointer-events:none",
       ].join(";");
@@ -467,7 +467,7 @@
     marker.setAttribute("aria-label", "Already saved in Local Music Library");
     marker.style.cssText = [
       "display:inline-flex", "align-items:center", "margin-left:5px", "padding:2px 6px",
-      "border:1px solid rgba(255,255,255,.28)", "border-radius:999px",
+      "border:1px solid rgba(255,255,255,.28)", "border-radius:0",
       "background:#087448", "color:#fff", "font:700 11px/1.2 system-ui,sans-serif",
       "box-shadow:0 1px 4px rgba(0,0,0,.35)", "vertical-align:middle",
       "pointer-events:none", "white-space:nowrap", "opacity:0", "transition:opacity .12s ease",
@@ -506,7 +506,7 @@
     dot.setAttribute("aria-label", "Save to Local Music Library");
     dot.style.cssText = [
       "display:inline-flex", "align-items:center", "justify-content:center", "width:17px", "height:17px",
-      "margin-left:5px", "padding:0", "border:1px solid rgba(255,255,255,.45)", "border-radius:50%",
+      "margin-left:5px", "padding:0", "border:1px solid rgba(255,255,255,.45)", "border-radius:0",
       "background:#d96b17", "color:#fff", "font:900 17px/12px system-ui,sans-serif", "cursor:pointer",
       "vertical-align:middle", "box-shadow:0 1px 4px rgba(0,0,0,.35)",
     ].join(";");
