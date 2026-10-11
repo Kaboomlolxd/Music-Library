@@ -164,6 +164,7 @@ async function applyView(view) {
     item.classList.toggle("active", active);
     if (active) item.setAttribute("aria-current", "page");
     else item.removeAttribute("aria-current");
+    if (active) item.closest(".nav-menu")?.setAttribute("open", "");
   });
   document.querySelectorAll("[data-view-panel]").forEach((panel) => {
     panel.hidden = !String(panel.dataset.viewPanel || "").split(/\s+/).includes(selectedView);

@@ -8,6 +8,8 @@
 - Added provider playback retries and best-effort Bilibili unmute handling.
 - Separated active jobs from recent paused or failed job issues in the dashboard.
 - Rebuilt Chrome and Firefox/Zen packages with POSIX archive paths for store validation.
+- Simplified the README and grouped secondary dashboard controls into menus.
+- Reworked the dashboard styling with square panels, angular buttons, and sharper borders.
 
 ## 0.5.0 - 2026-10-01
 

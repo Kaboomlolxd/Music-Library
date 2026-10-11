@@ -21,31 +21,37 @@
       </div>
     </header>
     <nav class="view-nav" aria-label="Primary">
-      <div class="nav-group">
-        <span class="nav-label">Browse</span>
+      <details class="nav-menu" open>
+        <summary>Browse</summary>
+        <div class="nav-group">
         <button class="view-link active" data-view="home">Home</button>
         <button class="view-link" data-view="library">Library</button>
         <button class="view-link" data-view="playlists">Playlists</button>
         <button class="view-link" data-view="queue">Queue</button>
-      </div>
-      <div class="nav-group">
-        <span class="nav-label">Build</span>
+        </div>
+      </details>
+      <details class="nav-menu">
+        <summary>Build</summary>
+        <div class="nav-group">
         <button class="view-link" data-view="imports">Imports</button>
         <button class="view-link" data-view="discover">Discover</button>
         <button class="view-link" data-view="subscriptions">Subscriptions</button>
-      </div>
-      <div class="nav-group">
-        <span class="nav-label">Keep tidy</span>
+        </div>
+      </details>
+      <details class="nav-menu">
+        <summary>Keep tidy</summary>
+        <div class="nav-group">
         <button class="view-link" data-view="maintenance">Maintenance</button>
         <button class="view-link" data-view="backups">Backups</button>
         <button class="view-link" data-view="settings">Settings</button>
-      </div>
+        </div>
+      </details>
     </nav>
 
     <main class="layout">
       <aside class="sidebar">
-        <section>
-          <p class="sidebar-label">Your library</p>
+        <details class="side-menu" open>
+          <summary class="sidebar-label">Your library</summary>
           <div class="section-heading">
             <h2>Playlists</h2>
             <button class="icon" id="new-playlist-button" title="New playlist">+</button>
@@ -53,47 +59,47 @@
           </div>
           <button class="playlist-link active" data-playlist-id="">All Library</button>
           <div id="playlist-list" class="stack-list"></div>
-        </section>
+        </details>
 
-        <section>
-          <p class="sidebar-label">Saved views</p>
+        <details class="side-menu">
+          <summary class="sidebar-label">Saved views</summary>
           <div class="section-heading">
             <h2>Saved pools</h2>
             <button class="icon" id="save-pool-button" title="Save the current selection as a pool">+</button>
           </div>
           <div id="pool-list" class="stack-list muted">No saved pools yet.</div>
-        </section>
+        </details>
 
-        <section>
-          <p class="sidebar-label">People</p>
+        <details class="side-menu">
+          <summary class="sidebar-label">People</summary>
           <div class="section-heading">
             <h2>Creators / producers</h2>
           </div>
           <div id="creator-list" class="stack-list muted">No creators detected yet.</div>
-        </section>
+        </details>
 
-        <section>
-          <p class="sidebar-label">Automation</p>
+        <details class="side-menu">
+          <summary class="sidebar-label">Automation</summary>
           <div class="section-heading">
             <h2>Subscriptions</h2>
             <button class="icon" id="new-subscription-button" title="Subscribe to a channel or playlist">+</button>
           </div>
           <div id="subscription-list" class="stack-list muted">No subscriptions yet.</div>
-        </section>
+        </details>
 
-        <section class="sidebar-actions">
-          <p class="sidebar-label">Tools</p>
+        <details class="side-menu sidebar-actions">
+          <summary class="sidebar-label">Tools</summary>
           <button id="duplicates-button">Possible duplicates</button>
           <button id="sources-button">Sources &amp; refresh</button>
           <button id="history-button">Playback history</button>
           <button id="trash-button">Trash &amp; undo</button>
           <a href="/library.md" target="_blank">Open Markdown export</a>
           <a href="/library.txt" target="_blank">Open text export</a>
-        </section>
+        </details>
       </aside>
 
       <section class="workspace">
-        <section class="panel import-panel" data-view-panel="imports home">
+        <section class="panel import-panel" data-view-panel="imports">
           <div class="section-heading">
             <div>
               <p class="eyebrow">IMPORT</p>
@@ -103,7 +109,9 @@
           </div>
           <form id="import-form">
             <textarea id="import-urls" required placeholder="Paste one or more YouTube or Bilibili URLs — one per line"></textarea>
-            <div class="form-row import-options">
+            <details class="compact-menu">
+              <summary>Import options</summary>
+              <div class="form-row import-options">
               <label>Local playlist
                 <select id="import-playlist" required></select>
               </label>
@@ -126,7 +134,8 @@
                   <option value="mirror_preserve_local_removals">Mirror, preserve local removals</option>
                 </select>
               </label>
-            </div>
+              </div>
+            </details>
             <div class="form-row checks">
               <label><input type="checkbox" id="include-unknown-views"> Keep unavailable-view items when filtering</label>
               <label><input type="checkbox" id="refresh-views"> Refresh missing views/metadata (slower)</label>
@@ -140,7 +149,7 @@
             <span id="import-progress-label" class="muted"></span>
           </div>
         </section>
-        <section class="panel jobs-panel" data-view-panel="imports home">
+        <section class="panel jobs-panel" data-view-panel="imports">
           <div class="section-heading"><div><p class="eyebrow">JOB HISTORY</p><h2>Imports and updates</h2></div><button id="jobs-refresh-button">Refresh</button></div>
           <div id="jobs-list" class="stack-list muted">No jobs currently.</div>
           <details id="jobs-issues-wrap" class="jobs-issues" hidden>
@@ -149,7 +158,7 @@
           </details>
         </section>
 
-        <section class="panel queue-panel" data-view-panel="queue home">
+        <section class="panel queue-panel" data-view-panel="queue">
           <div class="section-heading">
             <div>
               <p class="eyebrow">QUEUE</p>
@@ -165,6 +174,8 @@
               <button id="clear-queue-button" class="secondary" title="Clear queue">Clear</button>
             </div>
           </div>
+          <details class="compact-menu queue-options">
+            <summary>Queue setup</summary>
           <div class="queue-build">
             <label>Playlist pool
               <select id="pool-playlists" multiple size="3" aria-label="Playlists to include in queue pool"></select>
@@ -184,6 +195,7 @@
             <label><input id="include-repeats" type="checkbox"> Include duplicate copies</label>
             <button id="queue-selection-button">Queue current selection</button>
           </div>
+          </details>
           <div class="rating-bar">
             <label for="now-rating">Rate current track (0–10)</label>
             <input id="now-rating" inputmode="decimal" placeholder="—" aria-label="Rate current track from 0 to 10">
@@ -358,7 +370,7 @@
           <div id="merge-order" class="merge-order muted">Add playlists above. The first one has priority.</div>
         </section>
 
-        <section class="panel pairing-panel" data-view-panel="settings home">
+        <section class="panel pairing-panel" data-view-panel="settings">
           <div>
             <p class="eyebrow">LIBRARY PLAYER EXTENSION</p>
             <h2>Pair Chrome or Zen/Firefox</h2>
