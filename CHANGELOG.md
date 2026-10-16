@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Stopped full dashboard reloads for connection, queue, and export notifications. Batched library-change notifications and slowed reconnect attempts while the server is offline.
 - Added Shift-click range selection and deselection in the library, with a partial-selection indicator.
 - Added an explicit All Library queue source that includes unloaded tracks and can be saved as a dynamic pool.
 - Enabled recoverable deletion from All Library and added a second, typed-count confirmation for selections of more than 50 songs.

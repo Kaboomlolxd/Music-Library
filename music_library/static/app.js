@@ -50,6 +50,8 @@ const api = async (path, options = {}) => {
   return response.status === 204 ? null : response.json();
 };
 const post = (path, body = {}) => api(path, { method: "POST", body: JSON.stringify(body) });
+let libraryRefreshTimer = null;
+let dashboardReconnectDelay = 1200;
 
 function toast(message, isError = false) {
   const status = $("#import-status");
@@ -420,6 +422,12 @@ async function loadTracks({ append = false } = {}) {
 }
 
 async function reload({ tracks = true } = {}) {
+  // A local edit often also sends a WebSocket notification. Its explicit
+  // refresh covers that notification, so cancel the queued duplicate.
+  if (tracks) {
+    window.clearTimeout(libraryRefreshTimer);
+    libraryRefreshTimer = null;
+  }
   const [health, playlists, pools, creators, subscriptions] = await Promise.all([
     api("/api/health"), api("/api/playlists"), api("/api/pools"),
     api("/api/creators"), api("/api/subscriptions"),
@@ -619,10 +627,49 @@ async function queueSelection(selection = currentSelection()) {
     : `Queued ${result.track_count} tracks. Pair the extension or use the direct links.`);
 }
 
-function connectWebSocket() {
+function applyServerState(message) {
+  state.health ??= {};
+  if (message.stats) {
+    state.health.stats = message.stats;
+    $("#stats").textContent = `${message.stats.tracks.toLocaleString()} tracks · ${message.stats.playlists} playlists`;
+  }
+  if (message.queue) {
+    state.health.queue = message.queue;
+    renderQueue(message.queue);
+  }
+  if (message.extension_sessions) {
+    state.health.extension_sessions = message.extension_sessions;
+    renderExtensionStatus(message.extension_sessions);
+  }
+}
+
+function scheduleLibraryRefresh() {
+  if (libraryRefreshTimer !== null) return;
+  libraryRefreshTimer = window.setTimeout(() => {
+    libraryRefreshTimer = null;
+    reload().catch((error) => toast(`Could not refresh library: ${error.message}`, true));
+  }, 200);
+}
+
+function connectWebSocket({ reconnect = false } = {}) {
   const socket = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/ui`);
-  socket.onmessage = async (event) => {
+  socket.onmessage = (event) => {
     const message = JSON.parse(event.data);
+    if (message.type === "connected") {
+      dashboardReconnectDelay = 1200;
+      applyServerState(message);
+      // Only a reconnect can have missed library edits. The first connection
+      // follows the initial HTTP load and needs no second copy of those reads.
+      if (reconnect || !state.health?.pairing_token) scheduleLibraryRefresh();
+      return;
+    }
+    if (message.type === "library_changed") {
+      applyServerState(message);
+      const reason = String(message.reason || "");
+      if (["extension_connected", "extension_disconnected", "queue"].includes(reason) || reason.startsWith("queue_")) return;
+      scheduleLibraryRefresh();
+      return;
+    }
     if (message.type === "import_started" || message.type === "job_started") {
       setImportProgress({ stage: "discovering" });
       toast("Importing…");
@@ -640,11 +687,14 @@ function connectWebSocket() {
     } else if (message.type === "queue_finished") {
       $("#player-status").textContent = "Queue finished. Choose another pool or rebuild it.";
     }
-    if (["connected", "library_changed", "import_finished", "job_finished", "job_failed", "exports_updated"].includes(message.type)) {
-      try { await reload(); } catch (error) { console.error(error); }
+    if (["import_finished", "job_finished", "job_failed"].includes(message.type)) {
+      scheduleLibraryRefresh();
     }
   };
-  socket.onclose = () => window.setTimeout(connectWebSocket, 1200);
+  socket.onclose = () => {
+    window.setTimeout(() => connectWebSocket({ reconnect: true }), dashboardReconnectDelay);
+    dashboardReconnectDelay = Math.min(30_000, dashboardReconnectDelay * 2);
+  };
 }
 
 $("#import-form").addEventListener("submit", async (event) => {
@@ -1387,5 +1437,6 @@ $("#discover-refresh-button")?.addEventListener("click", async () => {
 
 const restoredView = restoreLibraryPreferences();
 applyView(restoredView).catch((error) => console.error(error));
-reload().catch((error) => toast(`Could not load library: ${error.message}`, true));
-connectWebSocket();
+reload()
+  .catch((error) => toast(`Could not load library: ${error.message}`, true))
+  .finally(() => connectWebSocket());
