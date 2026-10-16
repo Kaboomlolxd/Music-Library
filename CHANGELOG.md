@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added Shift-click range selection and deselection in the library, with a partial-selection indicator.
+- Added an explicit All Library queue source that includes unloaded tracks and can be saved as a dynamic pool.
 - Enabled recoverable deletion from All Library and added a second, typed-count confirmation for selections of more than 50 songs.
 - Fixed dashboard startup after the sidebar menu redesign, which prevented saved tracks and existing playlists from loading.
 - Made playlist shortcuts open the library view, added a filter reset, and kept load errors visible outside Imports.

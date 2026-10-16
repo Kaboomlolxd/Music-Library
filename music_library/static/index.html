@@ -180,7 +180,8 @@
             <summary>Queue setup</summary>
           <div class="queue-build">
             <label>Playlist pool
-              <select id="pool-playlists" multiple size="3" aria-label="Playlists to include in queue pool"></select>
+              <select id="pool-playlists" multiple size="3" aria-label="Playlists to include in queue pool" aria-describedby="pool-playlists-help"></select>
+              <small id="pool-playlists-help" class="muted">All Library queues every saved track, including unloaded pages, and ignores filters and checked rows. Leave the pool unselected to use the current selection.</small>
             </label>
             <label>Shuffle
               <select id="shuffle-mode">
@@ -432,6 +433,6 @@
         <div id="dialog-content"><h2 id="dialog-title">Dialog</h2></div>
       </div>
     </div>
-    <script type="module" src="/app.js?v=20261016-library-delete"></script>
+    <script type="module" src="/app.js?v=20261016-range-queue"></script>
   </body>
 </html>

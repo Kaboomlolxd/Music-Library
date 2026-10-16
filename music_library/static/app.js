@@ -8,6 +8,7 @@ const state = {
   total: 0,
   offset: 0,
   selectedTrackIds: new Set(),
+  selectionAnchorIndex: null,
   queue: null,
   health: null,
   mergeIds: [],
@@ -183,6 +184,10 @@ async function applyView(view) {
 }
 
 function currentSelection() {
+  const poolValues = [...$("#pool-playlists").selectedOptions].map((option) => option.value);
+  if (poolValues.includes("all-library")) {
+    return { include_repeats: $("#include-repeats").checked };
+  }
   const selection = {
     include_repeats: $("#include-repeats").checked,
     provider: $("#provider-filter").value || undefined,
@@ -190,7 +195,7 @@ function currentSelection() {
   };
   const rating = $("#rating-filter").value;
   if (rating !== "") selection.min_rating = Number(rating);
-  const poolPlaylistIds = [...$("#pool-playlists").selectedOptions].map((option) => Number(option.value));
+  const poolPlaylistIds = poolValues.map(Number);
   if (poolPlaylistIds.length) selection.playlist_ids = poolPlaylistIds;
   if (state.selectedTrackIds.size) {
     selection.track_ids = [...state.selectedTrackIds];
@@ -225,7 +230,7 @@ function renderPlaylists() {
     `<option value="${playlist.id}">${escapeHtml(playlist.name)}</option>`).join("");
   const poolSelect = $("#pool-playlists");
   const selectedPoolIds = new Set([...poolSelect.selectedOptions].map((option) => option.value));
-  poolSelect.innerHTML = state.playlists.map((playlist) =>
+  poolSelect.innerHTML = `<option value="all-library" ${selectedPoolIds.has("all-library") ? "selected" : ""}>All Library</option>` + state.playlists.map((playlist) =>
     `<option value="${playlist.id}" ${selectedPoolIds.has(String(playlist.id)) ? "selected" : ""}>${escapeHtml(playlist.name)}</option>`
   ).join("");
 }
@@ -307,15 +312,14 @@ function renderQueue(queue) {
 function renderTracks() {
   const playlist = activePlaylist();
   $("#library-heading").textContent = playlist ? playlist.name : "All Library";
-  $("#result-count").textContent = `${state.total.toLocaleString()} track${state.total === 1 ? "" : "s"}${state.selectedTrackIds.size ? ` · ${state.selectedTrackIds.size} selected` : ""}`;
-  $("#track-list").innerHTML = state.tracks.map((track) => {
+  $("#track-list").innerHTML = state.tracks.map((track, index) => {
     const memberships = track.membership_id ? `data-membership-id="${track.membership_id}"` : "";
     const selected = state.selectedTrackIds.has(track.id) ? "checked" : "";
     const lastPlayed = track.last_played_at
       ? new Date(track.last_played_at).toLocaleString()
       : "Never played";
     return `<tr>
-      <td><input type="checkbox" class="track-select" data-track-id="${track.id}" ${selected}></td>
+      <td><input type="checkbox" class="track-select" data-track-id="${track.id}" data-track-index="${index}" aria-label="Select ${escapeHtml(track.title)}" title="Shift-click to select or deselect a range" ${selected}></td>
       <td class="creator-cell">${escapeHtml(track.uploader || track.creator || "Unknown uploader")}</td>
       <td class="title-cell"><a href="${escapeHtml(track.url)}" target="_blank" rel="noopener">${escapeHtml(track.title)}</a><small class="muted">Last played: ${escapeHtml(lastPlayed)}</small></td>
       <td>${escapeHtml(track.provider)}</td>
@@ -333,7 +337,22 @@ function renderTracks() {
     </tr>`;
   }).join("") || '<tr><td colspan="7" class="muted">No tracks match this view.</td></tr>';
   $("#load-more-button").hidden = state.offset + state.tracks.length >= state.total;
-  $("#select-page").checked = state.tracks.length > 0 && state.tracks.every((track) => state.selectedTrackIds.has(track.id));
+  renderTrackSelection();
+}
+
+function clearTrackSelection() {
+  state.selectedTrackIds.clear();
+  state.selectionAnchorIndex = null;
+}
+
+function renderTrackSelection() {
+  $("#result-count").textContent = `${state.total.toLocaleString()} track${state.total === 1 ? "" : "s"}${state.selectedTrackIds.size ? ` · ${state.selectedTrackIds.size} selected` : ""}`;
+  $("#track-list").querySelectorAll(".track-select").forEach((checkbox) => {
+    checkbox.checked = state.selectedTrackIds.has(Number(checkbox.dataset.trackId));
+  });
+  const selectedRows = state.tracks.filter((track) => state.selectedTrackIds.has(track.id)).length;
+  $("#select-page").checked = state.tracks.length > 0 && selectedRows === state.tracks.length;
+  $("#select-page").indeterminate = selectedRows > 0 && selectedRows < state.tracks.length;
   const removeSelected = $("#remove-selected-button");
   if (removeSelected) {
     removeSelected.disabled = state.deletingTracks || state.selectedTrackIds.size === 0;
@@ -395,6 +414,7 @@ async function loadTracks({ append = false } = {}) {
   state.total = response.total;
   state.offset = offset;
   state.tracks = append ? state.tracks.concat(response.items) : response.items;
+  if (!append) state.selectionAnchorIndex = null;
   renderTracks();
   updateFilterSummary();
 }
@@ -675,7 +695,7 @@ $("#playlist-list").addEventListener("click", async (event) => {
   if (!button) return;
   state.activePlaylistId = Number(button.dataset.playlistId);
   saveLibraryPreferences();
-  state.selectedTrackIds.clear();
+  clearTrackSelection();
   try {
     await applyView("library");
     await reload();
@@ -691,7 +711,7 @@ $("#creator-list").addEventListener("click", async (event) => {
   const button = event.target.closest("[data-creator-name]");
   if (!button) return;
   state.activePlaylistId = null;
-  state.selectedTrackIds.clear();
+  clearTrackSelection();
   $("#creator-library-filter").value = button.dataset.creatorName;
   saveLibraryPreferences();
   try {
@@ -708,7 +728,7 @@ $("#new-subscription-button").addEventListener("click", () => showSubscriptions(
 
 $("#all-library-button").addEventListener("click", async () => {
   state.activePlaylistId = null;
-  state.selectedTrackIds.clear();
+  clearTrackSelection();
   saveLibraryPreferences();
   try {
     await applyView("library");
@@ -749,7 +769,7 @@ $("#creator-library-filter").addEventListener("input", (() => {
   return () => { window.clearTimeout(timer); timer = window.setTimeout(() => loadTracks(), 200); };
 })());
 $("#load-more-button").addEventListener("click", () => loadTracks({ append: true }));
-$("#clear-selection-button").addEventListener("click", () => { state.selectedTrackIds.clear(); renderTracks(); });
+$("#clear-selection-button").addEventListener("click", () => { clearTrackSelection(); renderTrackSelection(); });
 $("#reset-library-filters").addEventListener("click", async () => {
   for (const id of ["track-search", ...LIBRARY_FILTER_CONTROLS]) document.getElementById(id).value = "";
   saveLibraryPreferences();
@@ -804,7 +824,7 @@ $("#add-selected-button")?.addEventListener("click", async () => {
     const result = await post(`/api/playlists/${playlistId}/tracks/bulk`, {
       track_ids: [...state.selectedTrackIds],
     });
-    state.selectedTrackIds.clear();
+    clearTrackSelection();
     await reload();
     $("#selection-playlist").value = String(playlistId);
     toast(`Added ${result.added} selected track${result.added === 1 ? "" : "s"}${result.existing ? ` · ${result.existing} already there` : ""}.`);
@@ -834,18 +854,14 @@ $("#saved-search-select")?.addEventListener("change", async (event) => {
 });
 
 $("#select-page").addEventListener("change", (event) => {
+  state.selectionAnchorIndex = null;
   for (const track of state.tracks) {
     if (event.target.checked) state.selectedTrackIds.add(track.id);
     else state.selectedTrackIds.delete(track.id);
   }
-  renderTracks();
+  renderTrackSelection();
 });
 $("#track-list").addEventListener("change", async (event) => {
-  if (event.target.matches(".track-select")) {
-    const id = Number(event.target.dataset.trackId);
-    if (event.target.checked) state.selectedTrackIds.add(id); else state.selectedTrackIds.delete(id);
-    renderTracks();
-  }
   if (event.target.matches("[data-rating-id]")) {
     try { await saveRating(Number(event.target.dataset.ratingId), event.target.value); } catch (error) { toast(error.message, true); }
   }
@@ -857,6 +873,22 @@ $("#track-list").addEventListener("keydown", async (event) => {
   }
 });
 $("#track-list").addEventListener("click", async (event) => {
+  if (event.target.matches(".track-select")) {
+    const index = Number(event.target.dataset.trackIndex);
+    const checked = event.target.checked;
+    const anchor = state.selectionAnchorIndex;
+    const useRange = event.shiftKey && anchor !== null && anchor < state.tracks.length;
+    const start = useRange ? Math.min(anchor, index) : index;
+    const end = useRange ? Math.max(anchor, index) : index;
+    for (let row = start; row <= end; row += 1) {
+      const id = state.tracks[row].id;
+      if (checked) state.selectedTrackIds.add(id);
+      else state.selectedTrackIds.delete(id);
+    }
+    if (!useRange) state.selectionAnchorIndex = index;
+    renderTrackSelection();
+    return;
+  }
   const button = event.target.closest("[data-action]");
   if (!button) return;
   try {
@@ -889,6 +921,10 @@ $("#track-list").addEventListener("click", async (event) => {
   } catch (error) { toast(error.message, true); }
 });
 
+$("#pool-playlists").addEventListener("change", () => {
+  const allLibrary = [...$("#pool-playlists").selectedOptions].some((option) => option.value === "all-library");
+  $("#queue-selection-button").textContent = allLibrary ? "Queue All Library" : "Queue current selection";
+});
 $("#queue-selection-button").addEventListener("click", async () => {
   try { await queueSelection(); } catch (error) { toast(error.message, true); }
 });
