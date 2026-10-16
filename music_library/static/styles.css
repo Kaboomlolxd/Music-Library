@@ -91,6 +91,8 @@ h1 { font-size: 1.55rem; letter-spacing: -.025em; }
 h2 { font-size: 1.05rem; letter-spacing: -.01em; }
 .eyebrow { color: var(--accent-2); font-size: .68rem; font-weight: 800; letter-spacing: .12em; margin-bottom: .25rem; }
 .muted { color: var(--muted); }
+.app-status { padding: .65rem clamp(1rem, 3vw, 3rem); border-bottom: 1px solid var(--border); color: var(--accent-2); background: var(--panel-3); font-size: .85rem; overflow-wrap: anywhere; }
+.app-status.is-error { color: var(--danger); }
 .header-status { display: flex; align-items: center; gap: .65rem; color: var(--muted); font-size: .82rem; }
 .stats-chip { display: inline-flex; align-items: center; gap: .42rem; padding: .45rem .65rem; border: 1px solid var(--border); border-radius: 999px; background: rgb(19 30 53 / 72%); }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent-2); box-shadow: 0 0 0 4px rgb(168 255 218 / 9%); }

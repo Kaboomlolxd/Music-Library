@@ -53,6 +53,10 @@ function toast(message, isError = false) {
   const status = $("#import-status");
   status.textContent = message;
   status.style.color = isError ? "var(--danger)" : "";
+  const appStatus = $("#app-status");
+  appStatus.hidden = false;
+  appStatus.textContent = message;
+  appStatus.classList.toggle("is-error", isError);
 }
 
 function setImportProgress(message) {
@@ -196,6 +200,8 @@ function currentSelection() {
 }
 
 function renderPlaylists() {
+  if (state.activePlaylistId !== null && !activePlaylist()) state.activePlaylistId = null;
+  $("#all-library-button").classList.toggle("active", state.activePlaylistId === null);
   const list = $("#playlist-list");
   list.innerHTML = state.playlists.map((playlist) => `
     <button class="playlist-link ${playlist.id === state.activePlaylistId ? "active" : ""}" data-playlist-id="${playlist.id}">
@@ -668,7 +674,10 @@ $("#playlist-list").addEventListener("click", async (event) => {
   state.activePlaylistId = Number(button.dataset.playlistId);
   saveLibraryPreferences();
   state.selectedTrackIds.clear();
-  await reload();
+  try {
+    await applyView("library");
+    await reload();
+  } catch (error) { toast(error.message, true); }
 });
 
 $("#creator-list").addEventListener("click", async (event) => {
@@ -683,7 +692,10 @@ $("#creator-list").addEventListener("click", async (event) => {
   state.selectedTrackIds.clear();
   $("#creator-library-filter").value = button.dataset.creatorName;
   saveLibraryPreferences();
-  await reload();
+  try {
+    await applyView("library");
+    await reload();
+  } catch (error) { toast(error.message, true); }
 });
 
 $("#subscription-list").addEventListener("click", (event) => {
@@ -692,14 +704,14 @@ $("#subscription-list").addEventListener("click", (event) => {
 
 $("#new-subscription-button").addEventListener("click", () => showSubscriptions().catch(showDialogError));
 
-document.querySelector(".sidebar > section").addEventListener("click", async (event) => {
-  const button = event.target.closest("[data-playlist-id]");
-  if (button && button.dataset.playlistId === "") {
-    state.activePlaylistId = null;
-    state.selectedTrackIds.clear();
-    saveLibraryPreferences();
+$("#all-library-button").addEventListener("click", async () => {
+  state.activePlaylistId = null;
+  state.selectedTrackIds.clear();
+  saveLibraryPreferences();
+  try {
+    await applyView("library");
     await reload();
-  }
+  } catch (error) { toast(error.message, true); }
 });
 
 $("#pool-list").addEventListener("click", async (event) => {
@@ -736,6 +748,13 @@ $("#creator-library-filter").addEventListener("input", (() => {
 })());
 $("#load-more-button").addEventListener("click", () => loadTracks({ append: true }));
 $("#clear-selection-button").addEventListener("click", () => { state.selectedTrackIds.clear(); renderTracks(); });
+$("#reset-library-filters").addEventListener("click", async () => {
+  for (const id of ["track-search", ...LIBRARY_FILTER_CONTROLS]) document.getElementById(id).value = "";
+  saveLibraryPreferences();
+  updateFilterSummary();
+  renderCreators();
+  try { await loadTracks(); } catch (error) { toast(error.message, true); }
+});
 $("#selection-playlist")?.addEventListener("change", () => renderTracks());
 $("#remove-selected-button")?.addEventListener("click", async () => {
   if (state.activePlaylistId === null || !state.selectedTrackIds.size) return;

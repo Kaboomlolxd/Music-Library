@@ -48,6 +48,8 @@
       </details>
     </nav>
 
+    <p id="app-status" class="app-status" role="status" aria-live="polite" hidden></p>
+
     <main class="layout">
       <aside class="sidebar">
         <details class="side-menu" open>
@@ -57,7 +59,7 @@
             <button class="icon" id="new-playlist-button" title="New playlist">+</button>
             <button class="icon" id="new-rating-playlist-button" title="New rating playlist">★</button>
           </div>
-          <button class="playlist-link active" data-playlist-id="">All Library</button>
+          <button id="all-library-button" class="playlist-link active" data-playlist-id="">All Library</button>
           <div id="playlist-list" class="stack-list"></div>
         </details>
 
@@ -223,6 +225,7 @@
                 <option value="youtube">YouTube</option>
                 <option value="bilibili">Bilibili</option>
               </select>
+              <button id="reset-library-filters" class="secondary">Reset filters</button>
               <button id="clear-selection-button" class="secondary">Clear selected</button>
               <button id="remove-selected-button" class="danger" disabled>Delete selected</button>
               <select id="selection-playlist" aria-label="Playlist for selected tracks">
@@ -339,7 +342,7 @@
                   <th>Actions</th>
                 </tr>
               </thead>
-              <tbody id="track-list"></tbody>
+              <tbody id="track-list"><tr><td colspan="7" class="muted">Loading library…</td></tr></tbody>
             </table>
           </div>
           <button id="load-more-button" class="secondary">Load more</button>
@@ -429,6 +432,6 @@
         <div id="dialog-content"><h2 id="dialog-title">Dialog</h2></div>
       </div>
     </div>
-    <script type="module" src="/app.js"></script>
+    <script type="module" src="/app.js?v=20261016-library-load"></script>
   </body>
 </html>

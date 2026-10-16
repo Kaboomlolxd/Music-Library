@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Fixed dashboard startup after the sidebar menu redesign, which prevented saved tracks and existing playlists from loading.
+- Made playlist shortcuts open the library view, added a filter reset, and kept load errors visible outside Imports.
+
 ## 0.5.1 - 2026-10-02
 
 - Reduced provider-page decoration to one hover-revealed saved marker beside each video title.
