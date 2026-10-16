@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Enabled recoverable deletion from All Library and added a second, typed-count confirmation for selections of more than 50 songs.
 - Fixed dashboard startup after the sidebar menu redesign, which prevented saved tracks and existing playlists from loading.
 - Made playlist shortcuts open the library view, added a filter reset, and kept load errors visible outside Imports.
 

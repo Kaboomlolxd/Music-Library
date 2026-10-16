@@ -19,6 +19,7 @@ const state = {
   bulkOperations: [],
   bulkPreviewRequest: null,
   lastBulkOperationId: null,
+  deletingTracks: false,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -327,7 +328,7 @@ function renderTracks() {
         <button data-action="relations" data-track-id="${track.id}">Explore relations</button>
         ${track.membership_id ? `<button data-action="remove-membership" ${memberships}>Remove</button>
           <button data-action="copy-membership" data-track-id="${track.id}">Copy</button>` : ""}
-        <button data-action="hide-track" data-track-id="${track.id}">Hide</button>
+        <button data-action="delete-track" data-track-id="${track.id}" title="Move to Trash across the library and all playlists">Delete</button>
       </td>
     </tr>`;
   }).join("") || '<tr><td colspan="7" class="muted">No tracks match this view.</td></tr>';
@@ -335,10 +336,11 @@ function renderTracks() {
   $("#select-page").checked = state.tracks.length > 0 && state.tracks.every((track) => state.selectedTrackIds.has(track.id));
   const removeSelected = $("#remove-selected-button");
   if (removeSelected) {
-    removeSelected.disabled = state.activePlaylistId === null || state.selectedTrackIds.size === 0;
+    removeSelected.disabled = state.deletingTracks || state.selectedTrackIds.size === 0;
+    removeSelected.textContent = state.deletingTracks ? "Deleting…" : "Delete selected";
     removeSelected.title = state.activePlaylistId === null
-      ? "Open a playlist to remove selected memberships"
-      : "Remove selected tracks from this playlist";
+      ? "Move selected tracks to Trash across the library and all playlists"
+      : "Remove selected entries from this playlist; tracks remain in All Library";
   }
   const addSelected = $("#add-selected-button");
   if (addSelected) addSelected.disabled = state.selectedTrackIds.size === 0 || !$("#selection-playlist")?.value;
@@ -494,9 +496,9 @@ async function showTrash() {
   </div>`).join("") || "<p class='muted'>No removed playlist entries.</p>";
   const hidden = data.hidden_tracks.map((item) => `<div class="dialog-item">
     <strong>${escapeHtml(item.creator || "Unknown uploader")} — ${escapeHtml(item.title)}</strong>
-    <button data-unhide-track="${item.id}">Unhide track</button>
-  </div>`).join("") || "<p class='muted'>No globally hidden tracks.</p>";
-  openDialog("Trash & undo", `<h3>Removed memberships</h3><div class="dialog-list">${memberships}</div><h3>Hidden tracks</h3><div class="dialog-list">${hidden}</div>`);
+    <button data-unhide-track="${item.id}">Restore track</button>
+  </div>`).join("") || "<p class='muted'>No deleted tracks.</p>";
+  openDialog("Trash & undo", `<h3>Removed playlist entries</h3><div class="dialog-list">${memberships}</div><h3>Deleted tracks</h3><div class="dialog-list">${hidden}</div>`);
 }
 
 async function showDuplicates() {
@@ -756,18 +758,44 @@ $("#reset-library-filters").addEventListener("click", async () => {
   try { await loadTracks(); } catch (error) { toast(error.message, true); }
 });
 $("#selection-playlist")?.addEventListener("change", () => renderTracks());
+function confirmTrackDeletion(count, playlistName = null) {
+  const songs = `${count.toLocaleString()} song${count === 1 ? "" : "s"}`;
+  const scope = playlistName === null
+    ? "from All Library and all playlists"
+    : `from the playlist "${playlistName}"`;
+  const recovery = playlistName === null
+    ? "You can restore the songs and their playlist appearances from Trash & undo."
+    : "The songs will remain in All Library. You can restore the playlist entries from Trash & undo.";
+  if (!window.confirm(`Delete ${songs} ${scope}?\n\n${recovery}`)) return false;
+  if (count <= 50) return true;
+  const answer = window.prompt(
+    `Second confirmation: you are deleting ${songs} ${scope}.\n\nType ${count} to confirm, or choose Cancel to keep the selection.`,
+    "",
+  );
+  if (answer?.trim() === String(count)) return true;
+  if (answer !== null) toast("Deletion cancelled. The confirmation count did not match.");
+  return false;
+}
+
 $("#remove-selected-button")?.addEventListener("click", async () => {
-  if (state.activePlaylistId === null || !state.selectedTrackIds.size) return;
-  const count = state.selectedTrackIds.size;
-  if (!window.confirm(`Delete ${count} selected track${count === 1 ? "" : "s"} from this playlist?`)) return;
+  if (state.deletingTracks || !state.selectedTrackIds.size) return;
+  const trackIds = [...state.selectedTrackIds];
+  const playlistId = state.activePlaylistId;
+  if (!confirmTrackDeletion(trackIds.length, activePlaylist()?.name ?? null)) return;
+  state.deletingTracks = true;
+  renderTracks();
   try {
-    const result = await post(`/api/playlists/${state.activePlaylistId}/tracks/remove-selected`, {
-      track_ids: [...state.selectedTrackIds],
-    });
-    state.selectedTrackIds.clear();
+    const path = playlistId === null
+      ? "/api/tracks/remove-selected"
+      : `/api/playlists/${playlistId}/tracks/remove-selected`;
+    const result = await post(path, { track_ids: trackIds });
+    for (const id of trackIds) state.selectedTrackIds.delete(id);
     await reload();
-    toast(`Removed ${result.removed} playlist entr${result.removed === 1 ? "y" : "ies"}.`);
+    toast(playlistId === null
+      ? `Moved ${result.removed} song${result.removed === 1 ? "" : "s"} to Trash & undo.`
+      : `Removed ${result.removed} playlist entr${result.removed === 1 ? "y" : "ies"}. Restore them from Trash & undo.`);
   } catch (error) { toast(error.message, true); }
+  finally { state.deletingTracks = false; renderTracks(); }
 });
 $("#add-selected-button")?.addEventListener("click", async () => {
   const playlistId = Number($("#selection-playlist")?.value);
@@ -842,7 +870,16 @@ $("#track-list").addEventListener("click", async (event) => {
       toast("Track link copied.");
     }
     if (button.dataset.action === "relations") await showRelations(id);
-    if (button.dataset.action === "hide-track") { await post(`/api/tracks/${id}/hidden`, { hidden: true }); await reload(); }
+    if (button.dataset.action === "delete-track") {
+      if (state.deletingTracks || !confirmTrackDeletion(1)) return;
+      state.deletingTracks = true;
+      try {
+        await post("/api/tracks/remove-selected", { track_ids: [id] });
+        state.selectedTrackIds.delete(id);
+        await reload();
+        toast("Moved song to Trash & undo.");
+      } finally { state.deletingTracks = false; renderTracks(); }
+    }
     if (button.dataset.action === "remove-membership") { await post(`/api/memberships/${button.dataset.membershipId}/remove`); await reload(); }
     if (button.dataset.action === "copy-membership") {
       if (state.activePlaylistId === null) throw new Error("Choose the playlist that should receive the duplicate copy.");

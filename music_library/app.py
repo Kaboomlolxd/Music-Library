@@ -1441,6 +1441,19 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
         except (KeyError, TypeError, ValueError) as exc:
             raise _error(exc) from exc
 
+    @app.post("/api/tracks/remove-selected")
+    async def trash_selected_tracks(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+        try:
+            track_ids = payload.get("track_ids")
+            if not isinstance(track_ids, list):
+                raise ValueError("track_ids must be a list")
+            removed = await asyncio.to_thread(database.trash_tracks, track_ids)
+            await schedule_export()
+            await emit_state("tracks_deleted")
+            return {"removed": removed}
+        except (TypeError, ValueError) as exc:
+            raise _error(exc) from exc
+
     @app.post("/api/tracks/{track_id}/hidden")
     async def hide_track(track_id: int, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
         try:

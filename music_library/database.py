@@ -2732,6 +2732,29 @@ class LibraryDatabase:
         with self.transaction() as conn:
             conn.execute("UPDATE tracks SET hidden_at = ? WHERE id = ?", (_utc_now() if hidden else None, track_id))
 
+    def trash_tracks(self, track_ids: list[int]) -> int:
+        """Soft-delete a selection atomically, preserving metadata and memberships."""
+        if not track_ids or any(type(track_id) is not int or track_id < 1 for track_id in track_ids):
+            raise ValueError("Select one or more valid track IDs")
+        ids = sorted(set(track_ids))
+        timestamp = _utc_now()
+        removed = 0
+        with self.transaction() as conn:
+            for start in range(0, len(ids), 500):
+                batch = ids[start:start + 500]
+                placeholders = ",".join("?" for _ in batch)
+                found = conn.execute(
+                    f"SELECT COUNT(*) FROM tracks WHERE id IN ({placeholders})", batch,
+                ).fetchone()[0]
+                if found != len(batch):
+                    raise ValueError("A selected track was not found; refresh the library and try again")
+                cursor = conn.execute(
+                    f"UPDATE tracks SET hidden_at = ? WHERE hidden_at IS NULL AND id IN ({placeholders})",
+                    [timestamp, *batch],
+                )
+                removed += cursor.rowcount
+        return removed
+
     def rate_track(self, track_id: int, value: float | None) -> dict[str, Any]:
         self.get_track(track_id)
         if value is None:
