@@ -35,6 +35,7 @@ class ImportOptions:
     youtube_popular: bool = False
     refresh_views: bool = False
     sync_policy: str = "append_only"
+    auto_add: bool = True
 
     def source_options(self) -> dict[str, Any]:
         return {
@@ -49,6 +50,7 @@ class ImportOptions:
             "youtube_popular": self.youtube_popular,
             "refresh_views": self.refresh_views,
             "sync_policy": self.sync_policy,
+            "auto_add": self.auto_add,
         }
 
 
@@ -60,6 +62,8 @@ class ImportResult:
     added_memberships: int = 0
     existing_memberships: int = 0
     tracks_upserted: int = 0
+    new_tracks: int = 0
+    new_track_ids: list[int] = field(default_factory=list)
     removed_memberships: int = 0
     preserved_local_removals: int = 0
     skipped_without_id: list[str] = field(default_factory=list)
@@ -72,6 +76,8 @@ class ImportResult:
             "added_memberships": self.added_memberships,
             "existing_memberships": self.existing_memberships,
             "tracks_upserted": self.tracks_upserted,
+            "new_tracks": self.new_tracks,
+            "new_track_ids": self.new_track_ids[:250],
             "removed_memberships": self.removed_memberships,
             "preserved_local_removals": self.preserved_local_removals,
             "skipped_without_id": self.skipped_without_id,
@@ -282,6 +288,12 @@ class LibraryImporter:
                         track_id = int(track["id"])
                         seen_track_ids.add(track_id)
                         provenance = self.database.source_membership(source_id, track_id)
+                        # Subscription notifications are source-specific. A
+                        # track already present from another provider/source is
+                        # still new when it first appears in this source.
+                        was_in_source = bool(
+                            provenance and provenance.get("missing_since") is None
+                        )
                         if (
                             provenance
                             and provenance.get("deleted_at") is not None
@@ -298,7 +310,11 @@ class LibraryImporter:
                             result.preserved_local_removals += 1
                             added = False
                         else:
-                            if provenance and provenance.get("deleted_at") is not None:
+                            auto_add = bool(actual_options.auto_add)
+                            if not auto_add:
+                                membership = {"id": None}
+                                added = False
+                            elif provenance and provenance.get("deleted_at") is not None:
                                 self.database.restore_membership(int(provenance["playlist_track_id"]))
                                 membership = {
                                     "id": int(provenance["playlist_track_id"]),
@@ -322,11 +338,14 @@ class LibraryImporter:
                             self.database.mark_source_membership(
                                 source_id,
                                 track_id,
-                                playlist_track_id=int(membership["id"]),
+                                playlist_track_id=int(membership["id"]) if membership.get("id") is not None else None,
                                 owns_membership=owns,
                                 seen_at=source_seen_at,
                             )
                         result.tracks_upserted += 1
+                        if not was_in_source:
+                            result.new_tracks += 1
+                            result.new_track_ids.append(track_id)
                         if added:
                             source_added += 1
                             result.added_memberships += 1

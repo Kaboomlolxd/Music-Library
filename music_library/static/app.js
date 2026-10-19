@@ -3,6 +3,7 @@ const state = {
   pools: [],
   creators: [],
   subscriptions: [],
+  subscriptionNewTracks: {},
   activePlaylistId: null,
   tracks: [],
   total: 0,
@@ -51,6 +52,7 @@ const api = async (path, options = {}) => {
 };
 const post = (path, body = {}) => api(path, { method: "POST", body: JSON.stringify(body) });
 let libraryRefreshTimer = null;
+let jobRefreshTimer = null;
 let dashboardReconnectDelay = 1200;
 
 function toast(message, isError = false) {
@@ -182,6 +184,11 @@ async function applyView(view) {
   if (selectedView === "imports" || selectedView === "home") await loadJobs();
   if (selectedView === "settings") await loadSettings();
   if (selectedView === "maintenance") await runMaintenance();
+  if (selectedView === "creators") await loadCreatorsPage();
+  if (selectedView === "subscriptions") {
+    renderSubscriptionPage();
+    await loadSubscriptionNewTracks();
+  }
   updateFilterSummary();
 }
 
@@ -268,6 +275,7 @@ function renderPools() {
 
 function renderCreators() {
   const list = $("#creator-list");
+  if (!list) return;
   list.classList.toggle("muted", state.creators.length === 0);
   list.innerHTML = state.creators.length
     ? state.creators.map((creator) => `
@@ -283,6 +291,11 @@ function renderCreators() {
 
 function renderSubscriptions() {
   const list = $("#subscription-list");
+  if (!list) {
+    renderSubscriptionPage();
+    updateSubscriptionBadge();
+    return;
+  }
   list.classList.toggle("muted", state.subscriptions.length === 0);
   list.innerHTML = state.subscriptions.length
     ? state.subscriptions.map((subscription) => `
@@ -294,6 +307,49 @@ function renderSubscriptions() {
         <span class="muted">${subscription.enabled ? "on" : "off"}</span>
       </div>`).join("")
     : "No subscriptions yet.";
+  renderSubscriptionPage();
+  updateSubscriptionBadge();
+}
+
+function updateSubscriptionBadge() {
+  const count = state.subscriptions.reduce((total, item) => total + Number(item.new_count || 0), 0);
+  const badge = $("#subscription-badge");
+  if (!badge) return;
+  badge.hidden = count < 1;
+  badge.textContent = count > 99 ? "99+" : String(count);
+}
+
+function renderSubscriptionPage() {
+  const list = $("#subscription-page-list");
+  if (!list) return;
+  const renderCard = (subscription) => {
+    const result = subscription.last_result || {};
+    const autoAdd = subscription.options?.auto_add !== false;
+    return `<article class="subscription-card ${subscription.new_count ? "has-new" : ""}">
+      <div class="section-heading"><h3>${escapeHtml(subscription.name)}</h3>${subscription.new_count ? `<span class="notification-badge">${subscription.new_count} new</span>` : ""}</div>
+      <p class="muted">${escapeHtml(subscription.url)}</p>
+      <p>${subscription.enabled ? "Enabled" : "Paused"} · ${autoAdd ? `auto-adds to ${escapeHtml(subscription.target_playlist_name)}` : "review only"}</p>
+      <p class="muted">Last check: ${escapeHtml(subscription.last_sync_at || "never")} · ${Number(result.new_tracks || result.added_memberships || 0)} new tracks last run${subscription.last_error ? `<br><span class="error-text">${escapeHtml(subscription.last_error)}</span>` : ""}</p>
+      ${(state.subscriptionNewTracks[String(subscription.id)] || []).length ? `<details class="subscription-new-list"><summary>New songs</summary><ul>${state.subscriptionNewTracks[String(subscription.id)].map((track) => `<li><a href="${escapeHtml(track.url)}" target="_blank" rel="noopener">${escapeHtml(track.title)}</a><span class="muted"> · ${escapeHtml(track.uploader || track.creator || "Unknown creator")}</span></li>`).join("")}</ul></details>` : ""}
+      <div class="button-row"><button data-page-sync-subscription="${subscription.id}">Refresh</button><button class="secondary" data-page-read-subscription="${subscription.id}">Mark read</button><button class="secondary" data-page-auto-add-subscription="${subscription.id}" data-auto-add="${autoAdd ? "false" : "true"}">${autoAdd ? "Review only" : "Auto-add"}</button><button class="secondary" data-page-toggle-subscription="${subscription.id}" data-enabled="${subscription.enabled ? "false" : "true"}">${subscription.enabled ? "Pause" : "Resume"}</button><button class="danger" data-page-delete-subscription="${subscription.id}">Remove</button></div>
+    </article>`;
+  };
+  if (!state.subscriptions.length) {
+    list.innerHTML = `<p class="muted">No subscriptions yet. Add a channel, playlist, series, or feed to start tracking it.</p>`;
+    return;
+  }
+  const auto = state.subscriptions.filter((item) => item.options?.auto_add !== false);
+  const review = state.subscriptions.filter((item) => item.options?.auto_add === false);
+  list.innerHTML = `${auto.length ? `<section class="subscription-group"><h3>Auto-saved new songs</h3><div class="subscription-page-grid">${auto.map(renderCard).join("")}</div></section>` : ""}${review.length ? `<section class="subscription-group"><h3>Review before adding</h3><p class="muted">These sources update metadata and keep new tracks out of their destination playlist until you choose Auto-add.</p><div class="subscription-page-grid">${review.map(renderCard).join("")}</div></section>` : ""}`;
+}
+
+async function loadCreatorsPage() {
+  const [sort, order] = String($("#creator-page-sort")?.value || "track_count:desc").split(":");
+  const params = new URLSearchParams({ q: $("#creator-page-search")?.value.trim() || "", sort, order });
+  const creators = await api(`/api/creators?${params}`);
+  const list = $("#creator-page-list");
+  if (!list) return;
+  list.innerHTML = creators.length ? creators.map((creator) => `<article class="creator-card"><div class="section-heading"><button class="creator-page-name" data-creator-page-name="${escapeHtml(creator.name)}">${escapeHtml(creator.name)}</button><span>${Number(creator.track_count).toLocaleString()} songs</span></div><p class="muted">${Number(creator.total_views || 0).toLocaleString()} views · ${escapeHtml((creator.providers || []).join(", "))}</p><div class="button-row">${creator.url ? `<button class="secondary" data-page-subscribe-creator-url="${escapeHtml(creator.url)}" data-page-subscribe-creator-name="${escapeHtml(creator.name)}">Subscribe</button>` : ""}<button class="secondary" data-creator-page-name="${escapeHtml(creator.name)}">Open in library</button></div></article>`).join("") : `<p class="muted">No creators match this filter.</p>`;
 }
 
 function renderQueue(queue) {
@@ -438,7 +494,7 @@ async function reload({ tracks = true } = {}) {
   state.creators = creators;
   state.subscriptions = subscriptions;
   $("#stats").textContent = `${health.stats.tracks.toLocaleString()} tracks · ${health.stats.playlists} playlists`;
-  $("#pairing-token").value = health.pairing_token;
+  if ($("#pairing-token")) $("#pairing-token").value = health.pairing_token;
   renderPlaylists();
   await loadSavedSearches();
   renderPools();
@@ -448,6 +504,12 @@ async function reload({ tracks = true } = {}) {
   renderMergeOrder();
   renderExtensionStatus(health.extension_sessions);
   if (tracks) await loadTracks();
+  if (document.querySelector('.view-link.active')?.dataset.view === "subscriptions") await loadSubscriptionNewTracks();
+}
+
+async function loadSubscriptionNewTracks() {
+  state.subscriptionNewTracks = await api("/api/subscriptions/new-tracks");
+  renderSubscriptionPage();
 }
 
 function renderExtensionStatus(sessions) {
@@ -601,6 +663,7 @@ async function showSubscriptions(prefillUrl = "", prefillName = "") {
       <label>Minimum views (optional)<input name="min_views" placeholder="100k"></label>
       <label>Cookies from browser (optional)<input name="cookies_from_browser" placeholder="zen or chrome"></label>
       <label>Synchronization policy<select name="sync_policy"><option value="append_only">Append only</option><option value="mirror">Mirror membership</option><option value="mirror_preserve_local_removals">Mirror, preserve local removals</option></select></label>
+      <label><input type="checkbox" name="auto_add" checked> Auto-add new tracks to the destination playlist</label>
       <label><input type="checkbox" name="refresh_views"> Refresh missing metadata</label>
       <button type="submit">Subscribe and sync now</button>
       <p class="muted">Mirroring only removes entries owned by this source; manual and unrelated playlist entries are never removed.</p>
@@ -651,10 +714,21 @@ function scheduleLibraryRefresh() {
   }, 200);
 }
 
+function scheduleJobRefresh() {
+  if (jobRefreshTimer !== null) return;
+  jobRefreshTimer = window.setTimeout(() => {
+    jobRefreshTimer = null;
+    loadJobs().catch((error) => console.error(error));
+  }, 350);
+}
+
 function connectWebSocket({ reconnect = false } = {}) {
   const socket = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/ui`);
   socket.onmessage = (event) => {
     const message = JSON.parse(event.data);
+    if (["job_started", "job_progress", "job_finished", "job_failed", "job_paused", "job_cancelled", "job_retrying", "job_created", "job_resumed"].includes(message.type)) {
+      scheduleJobRefresh();
+    }
     if (message.type === "connected") {
       dashboardReconnectDelay = 1200;
       applyServerState(message);
@@ -752,7 +826,7 @@ $("#playlist-list").addEventListener("click", async (event) => {
   } catch (error) { toast(error.message, true); }
 });
 
-$("#creator-list").addEventListener("click", async (event) => {
+$("#creator-list")?.addEventListener("click", async (event) => {
   const subscribe = event.target.closest("[data-subscribe-creator-url]");
   if (subscribe) {
     showSubscriptions(subscribe.dataset.subscribeCreatorUrl, subscribe.dataset.subscribeCreatorName).catch(showDialogError);
@@ -770,7 +844,7 @@ $("#creator-list").addEventListener("click", async (event) => {
   } catch (error) { toast(error.message, true); }
 });
 
-$("#subscription-list").addEventListener("click", (event) => {
+$("#subscription-list")?.addEventListener("click", (event) => {
   if (event.target.closest("[data-subscription-name]")) showSubscriptions().catch(showDialogError);
 });
 
@@ -1147,6 +1221,7 @@ $("#dialog").addEventListener("submit", async (event) => {
       cookies_from_browser: form.get("cookies_from_browser"),
       refresh_views: form.has("refresh_views"),
       sync_policy: form.get("sync_policy"),
+      auto_add: form.has("auto_add"),
     });
     toast(result.job?.id ? `Subscription created; sync job ${result.job.id.slice(0, 8)} queued.` : "Subscription created.");
     closeDialog();
@@ -1178,6 +1253,9 @@ $("#toast-rating").addEventListener("keydown", async (event) => {
 document.querySelectorAll(".view-link").forEach((link) => link.addEventListener("click", async () => {
   await applyView(link.dataset.view);
 }));
+document.querySelectorAll(".sidebar-page-link").forEach((link) => link.addEventListener("click", async () => {
+  await applyView(link.dataset.view);
+}));
 
 for (const id of LIBRARY_PREF_CONTROLS) {
   const element = document.getElementById(id);
@@ -1196,9 +1274,17 @@ async function loadJobs() {
   const jobs = await api("/api/jobs?limit=100");
   const active = new Set(["queued", "running", "waiting_retry"]);
   const issues = new Set(["paused", "failed"]);
-  const renderJob = (job, includePause = false) => `<div class="list-row"><strong>${escapeHtml(job.label || job.job_type)}</strong><span>${escapeHtml(job.status)} · ${Number(job.completed_count || 0)}/${Number(job.total_count || 0) || "?"}</span><span class="muted">${escapeHtml(job.error || "")}</span>${includePause ? `<button data-job-action="pause" data-job-id="${escapeHtml(job.id)}">Pause</button>` : ""}${issues.has(job.status) ? `<button data-job-action="resume" data-job-id="${escapeHtml(job.id)}">Resume</button>` : ""}</div>`;
+  const completed = new Set(["completed", "cancelled"]);
+  const renderJob = (job, includePause = false) => {
+    const result = job.result || {};
+    const resultSummary = job.status === "completed" && result
+      ? ` · ${Number(result.added_memberships || 0)} added · ${Number(result.tracks_upserted || 0)} metadata`
+      : "";
+    return `<div class="list-row"><strong>${escapeHtml(job.label || job.job_type)}</strong><span>${escapeHtml(job.status)} · ${Number(job.completed_count || 0)}/${Number(job.total_count || 0) || "?"}${resultSummary}</span><span class="muted">${escapeHtml(job.error || "")}</span>${includePause ? `<button data-job-action="pause" data-job-id="${escapeHtml(job.id)}">Pause</button>` : ""}${issues.has(job.status) ? `<button data-job-action="resume" data-job-id="${escapeHtml(job.id)}">Resume</button>` : ""}</div>`;
+  };
   const currentJobs = jobs.filter((job) => active.has(job.status));
   const recentIssues = jobs.filter((job) => issues.has(job.status) && job.error);
+  const recentHistory = jobs.filter((job) => completed.has(job.status)).slice(0, 25);
   $("#jobs-list").innerHTML = currentJobs.length
     ? currentJobs.map((job) => renderJob(job, true)).join("")
     : "No jobs currently.";
@@ -1209,6 +1295,12 @@ async function loadJobs() {
     issuesList.innerHTML = recentIssues.length
       ? recentIssues.map((job) => renderJob(job)).join("")
       : "";
+  }
+  const historyWrap = $("#jobs-history-wrap");
+  const historyList = $("#jobs-history");
+  if (historyWrap && historyList) {
+    historyWrap.hidden = !recentHistory.length;
+    historyList.innerHTML = recentHistory.map((job) => renderJob(job)).join("");
   }
 }
 async function loadSettings() {
@@ -1352,6 +1444,46 @@ $("#rollback-restore-button")?.addEventListener("click", async () => {
   } catch (error) { toast(error.message, true); }
 });
 $("#jobs-refresh-button")?.addEventListener("click", () => loadJobs().catch((error) => toast(error.message, true)));
+$("#subscriptions-refresh-button")?.addEventListener("click", async () => {
+  try {
+    const jobs = await Promise.all(state.subscriptions.filter((item) => item.enabled).map((item) => post(`/api/subscriptions/${item.id}/sync`)));
+    toast(`${jobs.filter((job) => job?.id).length} subscription refresh job${jobs.filter((job) => job?.id).length === 1 ? "" : "s"} queued.`);
+    await loadJobs();
+  } catch (error) { toast(error.message, true); }
+});
+$("#creators-refresh-button")?.addEventListener("click", () => loadCreatorsPage().catch((error) => toast(error.message, true)));
+$("#creator-page-search")?.addEventListener("input", (() => {
+  let timer;
+  return () => { clearTimeout(timer); timer = setTimeout(() => loadCreatorsPage().catch((error) => toast(error.message, true)), 180); };
+})());
+$("#creator-page-sort")?.addEventListener("change", () => loadCreatorsPage().catch((error) => toast(error.message, true)));
+$("#subscription-page-list")?.addEventListener("click", async (event) => {
+  const sync = event.target.closest("[data-page-sync-subscription]");
+  const read = event.target.closest("[data-page-read-subscription]");
+  const toggle = event.target.closest("[data-page-toggle-subscription]");
+  const autoAdd = event.target.closest("[data-page-auto-add-subscription]");
+  const remove = event.target.closest("[data-page-delete-subscription]");
+  try {
+    if (sync) await post(`/api/subscriptions/${sync.dataset.pageSyncSubscription}/sync`);
+    if (read) await post(`/api/subscriptions/${read.dataset.pageReadSubscription}/read`);
+    if (toggle) await post(`/api/subscriptions/${toggle.dataset.pageToggleSubscription}`, { enabled: toggle.dataset.enabled === "true" });
+    if (autoAdd) await post(`/api/subscriptions/${autoAdd.dataset.pageAutoAddSubscription}`, { auto_add: autoAdd.dataset.autoAdd === "true" });
+    if (remove && window.confirm("Remove this subscription? Existing local tracks and playlist entries will remain.")) await api(`/api/subscriptions/${remove.dataset.pageDeleteSubscription}`, { method: "DELETE" });
+    if (sync) toast("Subscription refresh queued.");
+    await reload({ tracks: false });
+  } catch (error) { toast(error.message, true); }
+});
+$("#creator-page-list")?.addEventListener("click", (event) => {
+  const subscribe = event.target.closest("[data-page-subscribe-creator-url]");
+  const creator = event.target.closest("[data-creator-page-name]");
+  if (subscribe) { showSubscriptions(subscribe.dataset.pageSubscribeCreatorUrl, subscribe.dataset.pageSubscribeCreatorName).catch(showDialogError); return; }
+  if (creator) {
+    state.activePlaylistId = null;
+    clearTrackSelection();
+    $("#creator-library-filter").value = creator.dataset.creatorPageName;
+    applyView("library").then(() => reload()).catch((error) => toast(error.message, true));
+  }
+});
 $("#jobs-list")?.addEventListener("click", async (event) => {
   const button = event.target.closest("[data-job-action]");
   if (!button) return;

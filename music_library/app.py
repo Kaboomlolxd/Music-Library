@@ -254,8 +254,18 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
         }
 
     @app.get("/api/creators")
-    async def list_creators() -> list[dict[str, Any]]:
-        return database.list_creators()
+    async def list_creators(
+        q: str = Query(default=""),
+        sort: str = Query(default="name"),
+        order: str = Query(default="desc"),
+    ) -> list[dict[str, Any]]:
+        rows = database.list_creators()
+        needle = q.casefold().strip()
+        if needle:
+            rows = [row for row in rows if needle in str(row.get("name") or "").casefold()]
+        key = sort if sort in {"name", "track_count", "rated_count", "total_views", "last_seen"} else "name"
+        reverse = order != "asc" if key != "name" else order == "desc"
+        return sorted(rows, key=lambda row: (row.get(key) is None, row.get(key) or ("" if key == "name" else 0)), reverse=reverse)
 
     @app.get("/api/track-status")
     async def track_status(url: str) -> dict[str, Any]:
@@ -597,6 +607,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
                 youtube_popular=bool(payload.get("youtube_popular", False)),
                 refresh_views=bool(payload.get("refresh_views", False)),
                 sync_policy=str(payload.get("sync_policy") or "append_only").strip().lower(),
+                auto_add=bool(payload.get("auto_add", True)),
             )
             if options.min_views is not None and options.min_views < 0:
                 raise ValueError("Minimum views must be zero or greater")
@@ -770,10 +781,13 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
                     progress=progress,
                 )
                 if subscription_id is not None:
+                    current_subscription = database.get_subscription(subscription_id)
                     database.update_subscription(
                         subscription_id,
                         last_sync_at=dt.datetime.now(dt.timezone.utc).isoformat(),
                         last_error=None,
+                        new_count=int(current_subscription.get("new_count") or 0) + int(result.new_tracks),
+                        last_result=result.as_dict(),
                     )
                 return result
             except Exception as exc:
@@ -831,7 +845,12 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
                     options=options,
                     progress=progress,
                 )
-                database.update_subscription(subscription_id, last_sync_at=dt.datetime.now(dt.timezone.utc).isoformat())
+                database.update_subscription(
+                    subscription_id,
+                    last_sync_at=dt.datetime.now(dt.timezone.utc).isoformat(),
+                    new_count=int(database.get_subscription(subscription_id).get("new_count") or 0) + int(result.new_tracks),
+                    last_result=result.as_dict(),
+                )
                 return result
             except Exception as exc:
                 database.update_subscription(
@@ -917,6 +936,10 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
     async def list_subscriptions() -> list[dict[str, Any]]:
         return database.list_subscriptions()
 
+    @app.get("/api/subscriptions/new-tracks")
+    async def subscription_new_tracks() -> dict[str, list[dict[str, Any]]]:
+        return database.subscription_new_tracks()
+
     @app.post("/api/subscriptions/{subscription_id}/sync")
     async def sync_subscription(subscription_id: int) -> dict[str, Any]:
         try:
@@ -924,12 +947,20 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
         except ValueError as exc:
             raise _error(exc) from exc
 
+    @app.post("/api/subscriptions/{subscription_id}/read")
+    async def read_subscription(subscription_id: int) -> dict[str, Any]:
+        try:
+            return database.update_subscription(subscription_id, new_count=0)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
     @app.post("/api/subscriptions/{subscription_id}")
     async def update_subscription(subscription_id: int, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
         try:
             return database.update_subscription(
                 subscription_id,
                 enabled=bool(payload["enabled"]) if "enabled" in payload else None,
+                options={"auto_add": bool(payload["auto_add"])} if "auto_add" in payload else None,
             )
         except ValueError as exc:
             raise _error(exc) from exc

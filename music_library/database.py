@@ -27,7 +27,7 @@ from typing import Any, Iterable, Iterator, Mapping
 
 from .queueing import unique_tracks
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 def _utc_now() -> str:
@@ -183,6 +183,8 @@ class LibraryDatabase:
                     enabled INTEGER NOT NULL DEFAULT 1,
                     last_sync_at TEXT,
                     last_error TEXT,
+                    new_count INTEGER NOT NULL DEFAULT 0,
+                    last_result_json TEXT NOT NULL DEFAULT '{}',
                     created_at TEXT NOT NULL,
                     UNIQUE(url, target_playlist_id)
                 );
@@ -235,7 +237,7 @@ class LibraryDatabase:
                 (_utc_now(),),
             )
             conn.execute(
-                "INSERT INTO settings(key, value) VALUES('update_schedule', 'manual') ON CONFLICT(key) DO NOTHING"
+                "INSERT INTO settings(key, value) VALUES('update_schedule', '3h') ON CONFLICT(key) DO NOTHING"
             )
             for key, value in (
                 ("backup_retention_daily", "7"),
@@ -256,6 +258,11 @@ class LibraryDatabase:
                 conn.execute("ALTER TABLE tracks ADD COLUMN uploader TEXT")
                 conn.execute("UPDATE tracks SET uploader = creator WHERE uploader IS NULL")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_tracks_uploader ON tracks(uploader)")
+            subscription_columns = {str(row["name"]) for row in conn.execute("PRAGMA table_info(subscriptions)").fetchall()}
+            if "new_count" not in subscription_columns:
+                conn.execute("ALTER TABLE subscriptions ADD COLUMN new_count INTEGER NOT NULL DEFAULT 0")
+            if "last_result_json" not in subscription_columns:
+                conn.execute("ALTER TABLE subscriptions ADD COLUMN last_result_json TEXT NOT NULL DEFAULT '{}'")
             conn.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS track_metadata (
@@ -985,7 +992,9 @@ class LibraryDatabase:
     def _subscription_row(row: sqlite3.Row) -> dict[str, Any]:
         result = dict(row)
         result["options"] = json.loads(result.pop("options_json") or "{}")
+        result["last_result"] = json.loads(result.pop("last_result_json", "{}") or "{}")
         result["enabled"] = bool(result["enabled"])
+        result["new_count"] = int(result.get("new_count") or 0)
         return result
 
     def get_subscription(self, subscription_id: int) -> dict[str, Any]:
@@ -1020,6 +1029,9 @@ class LibraryDatabase:
         enabled: bool | None = None,
         last_sync_at: str | None = None,
         last_error: str | None = None,
+        new_count: int | None = None,
+        last_result: Mapping[str, Any] | None = None,
+        options: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         self.get_subscription(subscription_id)
         assignments: list[str] = []
@@ -1035,6 +1047,18 @@ class LibraryDatabase:
             values.append(last_error)
         elif last_sync_at is not None:
             assignments.append("last_error = NULL")
+        if new_count is not None:
+            assignments.append("new_count = ?")
+            values.append(max(0, int(new_count)))
+        if last_result is not None:
+            assignments.append("last_result_json = ?")
+            values.append(json.dumps(dict(last_result), ensure_ascii=False))
+        if options is not None:
+            current = self.get_subscription(subscription_id)
+            merged = dict(current.get("options") or {})
+            merged.update(dict(options))
+            assignments.append("options_json = ?")
+            values.append(json.dumps(merged, ensure_ascii=False))
         if assignments:
             values.append(subscription_id)
             with self.transaction() as conn:
@@ -1046,6 +1070,23 @@ class LibraryDatabase:
             cursor = conn.execute("DELETE FROM subscriptions WHERE id = ?", (subscription_id,))
             if cursor.rowcount == 0:
                 raise ValueError("Subscription was not found")
+
+    def subscription_new_tracks(self) -> dict[str, list[dict[str, Any]]]:
+        """Return the bounded set of tracks discovered by each last sync."""
+        result: dict[str, list[dict[str, Any]]] = {}
+        for subscription in self.list_subscriptions():
+            ids = [int(value) for value in (subscription.get("last_result") or {}).get("new_track_ids", [])]
+            if not ids:
+                result[str(subscription["id"])] = []
+                continue
+            placeholders = ",".join("?" for _ in ids)
+            rows = self._rows(
+                f"SELECT t.*, r.value AS rating FROM tracks t LEFT JOIN ratings r ON r.track_id=t.id WHERE t.hidden_at IS NULL AND t.id IN ({placeholders})",
+                ids,
+            )
+            by_id = {int(row["id"]): row for row in rows}
+            result[str(subscription["id"])] = [by_id[track_id] for track_id in ids if track_id in by_id]
+        return result
 
     def track_status(self, *, provider: str, remote_id: str) -> dict[str, Any]:
         with self._lock:

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fixed Job History so active, completed, paused, and failed jobs update from live job events and completed imports remain visible in a separate history section.
+- Added a dedicated Subscriptions page with manual refresh, background refresh support, unread new-song counts, new-song lists, auto-add versus review-only modes, and per-source controls.
+- Added a dedicated Creators / producers page with name filtering, song-count and view sorting, library shortcuts, and subscription shortcuts.
+- Existing databases migrate subscription notification fields automatically; new installations default background subscription checks to every three hours.
 - Stopped full dashboard reloads for connection, queue, and export notifications. Batched library-change notifications and slowed reconnect attempts while the server is offline.
 - Added Shift-click range selection and deselection in the library, with a partial-selection indicator.
 - Added an explicit All Library queue source that includes unloaded tracks and can be saved as a dynamic pool.
