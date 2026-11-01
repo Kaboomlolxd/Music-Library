@@ -1,59 +1,128 @@
 # Local Music Library
 
-Current release: **0.5.1**. This is a Windows desktop dashboard for organizing
-long YouTube and Bilibili playlists using local metadata. It stores links,
-ratings, playlists, queue state, aliases, and review decisions. It does not
-download or re-encode media.
+Current release: **0.5.1**.
 
-The repository is source-available under [PolyForm Noncommercial 1.0.0](LICENSE).
-Read [CHANGELOG.md](CHANGELOG.md), [SECURITY.md](SECURITY.md), and
-[SUPPORT.md](SUPPORT.md) before distributing a build.
+Local Music Library is a Windows dashboard for organizing long YouTube and
+Bilibili libraries without downloading provider media. It saves links and
+metadata in a local SQLite database, then gives you playlists, queues,
+subscriptions, ratings, review tools, backups, and exports.
+
+The repository is source available under the [PolyForm Noncommercial 1.0.0
+license](LICENSE). Read the [changelog](CHANGELOG.md), [security policy](SECURITY.md),
+and [support notes](SUPPORT.md) before making a release or sharing a build.
 
 ## Start the dashboard
+
+From PowerShell:
 
 ```powershell
 .\setup.ps1
 .\MusicLibrary.ps1
 ```
 
-The app opens in your default browser and keeps its SQLite data under
-`%LOCALAPPDATA%\LocalMusicLibrary` unless you choose another directory:
+The app opens in your default browser. By default it stores data in
+`%LOCALAPPDATA%\LocalMusicLibrary`. Choose another directory when needed:
 
 ```powershell
 .\MusicLibrary.ps1 -DataDir "D:\MusicLibrary"
 ```
 
-Paste YouTube or Bilibili videos, playlists, channels, or feeds into Imports.
-Choose a local playlist, then start the metadata job. The dashboard supports:
+The dashboard binds to `127.0.0.1:8765`. Keep the terminal running while you
+use the dashboard or browser extension.
 
-- exact provider-ID deduplication and deliberate duplicate playlist copies;
-- ratings, tags, aliases, notes, soft deletion, undo, and bulk editing;
-- saved searches, pools, queue history, shuffle modes, and exports;
-- subscriptions with append-only or mirror membership rules;
-- backups with validation, restore, rollback, and retention settings;
-- relation suggestions for recordings, covers, remixes, and alternate mixes;
-- optional Chromaprint checks for files you explicitly select on disk.
+## Main workflows
 
-Relation scans use Unicode-aware metadata. They never fetch provider audio,
-merge tracks, or rewrite playlists without review. Translation packages are not
-part of the core install; add translated titles as aliases when needed.
+### Import links
+
+Open **Imports**, paste one or more YouTube or Bilibili video, playlist,
+channel, series, or feed URLs, choose a local playlist, and start the metadata
+job. Imports save provider links and metadata. They do not download or
+re-encode media.
+
+The import page shows current jobs, completed jobs, and recent paused or failed
+jobs separately. Jobs survive a restart when they can be resumed safely.
+
+### Organize the library
+
+The library supports:
+
+- exact provider-ID deduplication;
+- deliberate duplicate playlist entries;
+- ratings, tags, aliases, notes, and bulk metadata edits;
+- soft deletion, Trash, undo, and typed confirmation for large deletions;
+- Shift-click range selection, including range deselection;
+- saved searches and pools;
+- queue playback from selected tracks, playlists, pools, or **All Library**;
+- shuffle modes, uploader spacing, playback history, and exports;
+- backups with validation, restore, rollback, and retention settings.
+
+All Library queues every saved track, including tracks that are not on the
+currently loaded page. The selection and filter controls are separate from
+that queue source.
+
+### Subscriptions
+
+Open **Subscriptions** to track a channel, playlist, series, or feed. Each
+subscription has its own destination playlist and can use either mode:
+
+- **Auto-saved new songs** adds newly discovered source tracks to the selected
+  playlist.
+- **Review before adding** imports metadata and shows new tracks in the
+  subscription page without adding playlist membership.
+
+The page includes unread counts, new-song lists, manual refresh, pause/resume,
+mark-as-read, and the mode switch. Scheduled checks run when **Settings →
+Updates and safety → Automation** is set to **Every 3 hours** or **Daily**.
+New installations default to every three hours. Existing installations keep
+their current setting until you change it.
+
+### Creators and relations
+
+Open **Creators / producers** to filter creators and sort by song count, views,
+or name. From a creator card you can open the matching library view or start a
+subscription.
+
+Maintenance can suggest `same_recording`, `possible_duplicate`, `cover_of`,
+`remix_of`, `alternate_mix_of`, and related-title links from metadata. Open
+**Explore relations** on a track to inspect evidence, change traversal depth,
+review suggestions, or create a relation-based smart playlist. Suggestions are
+never accepted as destructive changes automatically.
+
+Relation matching preserves Unicode and uses title, creator, alias, album,
+duration, provider, and version evidence. It does not fetch provider audio.
+Optional local Chromaprint fingerprints are available only for audio files you
+explicitly select on disk. Translation packages are not part of the core
+install. Add translated names as aliases when needed.
 
 ## Browser extension and queue playback
 
-Build the current packages with:
+Build the current Chrome and Firefox/Zen packages with:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\PackMusicLibraryExtension.ps1
 ```
 
-Install the Chrome ZIP from `chrome://extensions`, or load the Firefox/Zen XPI
-temporarily from `about:debugging`. The extension README has the pairing steps.
-Use `http://127.0.0.1:8765`, paste the dashboard token, and choose the Zen
-browser mode when pairing Zen.
+The builder clears stale files from `dist`, creates the current archives, and
+uses POSIX paths inside both packages. This matters for Firefox Add-ons
+validation.
 
-The extension reuses one normal provider tab for the queue. It adds a small
-save control to unsaved result cards and reveals a saved marker beside a title
-only while you hover the card. Playback commands retry while a provider page
+Install the Chrome package from `chrome://extensions` using **Developer mode →
+Load unpacked** after extracting it. Load the Firefox/Zen XPI temporarily from
+`about:debugging`. Permanent Firefox/Zen installation requires Mozilla signing.
+See [extension/README.md](extension/README.md) for the full install and pairing
+steps.
+
+The extension reads the pairing token from the local dashboard when possible.
+Use the exact loopback address `http://127.0.0.1:8765`, choose **Zen** when
+running Zen, and use the profile label only as a local name. The extension
+tries `localhost` as a fallback for the live WebSocket. If HTTP pairing works
+but the player WebSocket does not, saved-status checks, browser saves, and
+ratings can still work while queue controls remain unavailable.
+
+The extension adds a small save control to unsaved provider result cards. Saved
+cards show a saved marker beside the title, without a persistent green outline.
+The marker is shown while the card is active or hovered. It reuses one normal
+YouTube or Bilibili tab for queue playback and retries navigation while a page
 loads. Browser autoplay, live videos, unavailable videos, ads, and provider
 privacy tools can still require a manual Play or Next action.
 
@@ -61,8 +130,8 @@ privacy tools can still require a manual Play or Next action.
 
 `bili2yt.py` is a separate terminal workflow. It discovers Bilibili or YouTube
 lists, downloads one selected item at a time with yt-dlp, and sends the file to
-an unlisted YouTube playlist through the visible YouTube Studio browser. It is
-not used by the dashboard.
+an unlisted YouTube playlist through the visible YouTube Studio browser. The
+dashboard does not use it.
 
 Install its optional tools:
 
@@ -85,32 +154,35 @@ python .\bili2yt.py `
 
 Use only media and accounts you are authorized to handle. The relay does not
 attempt CAPTCHA or anti-bot circumvention. Bilibili may return HTTP 401, 412,
-or 429; an authorized browser cookie, slower requests, or direct URLs are the
+or 429. Authorized browser cookies, slower requests, or direct URLs are the
 supported fallbacks.
 
-## Tests and release checks
+## Checks before a release
+
+Run the local checks from the repository root:
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest -v
 node --check extension/background.js
 node --check extension/content.js
 node --check extension/options.js
-.\.venv\Scripts\python.exe tools/release_check.py
+python tools/release_check.py
 ```
 
-The release builder creates a clean Windows ZIP and SHA-256 file. Extension
-archives are rebuilt from the current manifest and use POSIX paths so Firefox
-AMO accepts entries such as `icons/icon-128.png`.
+The release checklist is in [extension/RELEASE_CHECKLIST.md](extension/RELEASE_CHECKLIST.md).
+The store copy and privacy text are in
+[extension/STORE_LISTING.md](extension/STORE_LISTING.md).
 
 ## Known limits
 
-- The core app is local-only and does not include a translation service.
+- The core app is local-only. It does not provide cloud sync or remote access.
 - Audio similarity is limited to explicit local fingerprints. Cover and remix
-  suggestions rely on explainable metadata evidence.
-- Provider cookies remain in the browser. Never paste cookie files or passwords
-  into the dashboard or issue tracker.
+  suggestions use explainable metadata evidence.
+- The core installer has no translation service.
+- Provider cookies stay in the browser. Do not paste cookie files or passwords
+  into the dashboard or an issue report.
 - Spotify support is not included.
 
-For a bug report, include the app version, provider, a redacted error message,
-and the smallest reproduction you can share. Do not include pairing tokens,
-cookies, database files, or account credentials.
+For a bug report, include the app version, provider, job status, and a redacted
+error message. Do not include pairing tokens, cookies, database files, exports
+with private links, or account credentials.

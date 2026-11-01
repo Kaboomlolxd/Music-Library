@@ -6,43 +6,58 @@ Local Music Library Player
 
 ## Short description
 
-Save YouTube and Bilibili links to a local music library and reuse one browser tab for queue playback.
+Save YouTube and Bilibili links to a local music library and play its queue in one reused browser tab.
 
 ## Full description
 
-Local Music Library Player connects YouTube and Bilibili pages to the local Music Library desktop app.
+Local Music Library Player connects YouTube and Bilibili pages to the Local
+Music Library dashboard on your computer.
 
-Use it to:
+The extension can:
 
-- See whether a video is already saved in your local library.
-- Save a video to the local library without downloading media.
+- Check whether a video is in your local library.
+- Save a video link without downloading media.
 - Rate saved videos.
-- Mark saved videos clearly on home, search, channel, and list pages.
-- Reuse one normal provider tab for queue playback and next/previous navigation.
-- Recover the player tab after a browser restart or a closed tab.
+- Add a small save control to unsaved videos in search and listing pages.
+- Show a saved marker beside a saved video title.
+- Reuse one normal provider tab for queue playback and next/previous controls.
+- Reconnect to that player tab after a browser restart or when the tab closes.
 
-The extension talks only to the loopback Music Library server running on the same computer. It does not upload media, create remote playlists, capture audio, read provider passwords, or send data to a cloud service.
+The extension sends provider URLs, titles, uploader text, ratings, and queue
+commands only to the loopback Music Library server configured on the same
+computer. It does not upload media, create remote playlists, capture audio,
+read provider passwords, or send data to a developer-operated server. The
+desktop app must be running for saved checks, saves, ratings, and queue
+controls.
 
-The desktop app must be running for saving, ratings, status checks, and queue controls.
+## Permissions
 
-## Permissions explanation
+- `tabs` allows the extension to reuse its designated player tab.
+- `storage` stores the loopback server address, pairing token, browser label,
+  player tab, and widget position.
+- YouTube and Bilibili host access allows video-page details and saved-status
+  controls.
+- Loopback access allows connection to the local dashboard.
 
-- `tabs`: reuse and repair the one designated player tab.
-- `storage`: remember the local server, pairing token, browser label, player tab, and widget position.
-- YouTube/Bilibili host access: show saved-state markers and the current-video library widget.
-- Loopback access: communicate with the local Music Library app.
+## Reviewer steps
 
-## Reviewer instructions
+1. Start the desktop app with `MusicLibrary.ps1` and leave it running.
+2. Open the extension options. The extension should detect the loopback server
+   and pairing token. Select **Zen** if testing in Zen and automatic detection
+   chose Firefox.
+3. Open a YouTube or Bilibili video page. Use **Save to library** to test an
+   item that is not already saved, or update the rating of a saved item.
+4. In the dashboard, build a queue and select **Play / open in browser**.
+5. Confirm the extension reuses one provider tab as the queue advances.
 
-1. Start the desktop app with `MusicLibrary.ps1`.
-2. Open the extension options and use the automatically detected loopback server.
-3. Open a YouTube or Bilibili video page.
-4. The extension shows the saved-state widget. Use "Save to library" to test a new item.
-5. In the desktop dashboard, build a queue and choose "Play / open in browser".
-6. The extension reuses one provider tab for queue navigation.
-
-No provider account credentials are required by the extension. The reviewer does not need to download media.
+Provider account credentials are not required by the extension. Reviewers do
+not need to download media. For local development and troubleshooting, see
+[README.md](README.md).
 
 ## Privacy statement
 
-This extension has no remote backend. It sends provider URLs, page titles, uploader text, ratings, and queue-control messages only to the user's configured loopback Music Library server. The local app stores the library in SQLite on the user's computer. The extension does not sell, share, or retain data on a developer-controlled server.
+This extension has no remote backend. It sends provider URLs, page titles,
+uploader text, ratings, and queue-control messages only to the user's
+configured loopback Music Library server. The local app stores library data in
+SQLite on the user's computer. The extension does not sell, share, or retain
+data on a developer-controlled server.

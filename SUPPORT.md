@@ -1,13 +1,20 @@
-# Support and release information
+# Support
 
-The project is distributed as a Windows portable release with a local
-dashboard and optional Chrome/Firefox/Zen extension. Start with `README.md`,
-then check the extension release checklist and the troubleshooting section.
+Start with the [README](README.md) for setup and dashboard workflows. For
+extension installation and connection problems, see
+[extension/README.md](extension/README.md). Release checks and store steps are
+in [extension/RELEASE_CHECKLIST.md](extension/RELEASE_CHECKLIST.md).
 
-When reporting a problem, include the version, Windows version, provider,
-relevant job status, and a redacted error message. Never attach cookies,
-pairing tokens, or a private database.
+Report bugs and request features through
+[GitHub Issues](https://github.com/Kaboomlolxd/Music-Library/issues). Include
+the app version, Windows version, browser, provider, relevant job status, and a
+redacted error message. Share the smallest reproduction you can. Never attach
+cookies, pairing tokens, credentials, the library database, or exports that
+contain private links.
+
+For a security problem, use a private GitHub security advisory or contact the
+repository owner before filing a public issue. See [SECURITY.md](SECURITY.md).
 
 The project uses the PolyForm Noncommercial 1.0.0 license. It is source
-available for permitted noncommercial use; commercial use requires separate
+available for permitted noncommercial use. Commercial use requires separate
 permission from the copyright holder.

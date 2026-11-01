@@ -1,97 +1,122 @@
-# Local Music Library Player extension
+# Local Music Library Player
 
-This WebExtension lets the local Music Library dashboard reuse exactly one
-designated normal provider tab in each browser profile. It observes the
-provider page's real HTML5 video element and reports verified completion to the
-local app. It does not download media, capture audio, bypass ads/privacy
-extensions, use provider credentials, or open a tab for every queue item.
-When paired, it also shows a small saved-status widget on YouTube and Bilibili
-pages. The widget reports whether the current video is already in the local
-library, offers **Save to library** for new videos, and includes a rating box
-directly in the card for saved videos. On YouTube/Bilibili home, search, and
-list pages, saved videos receive a green **★ Saved** pill on the thumbnail and
-a thin green card outline. Layouts without a usable thumbnail show the pill
-beside the title instead. Hovering the pill shows the local playlist and rating
-when those values are available.
-Browser saves are placed in separate local playlists named **YouTube browser
-saves** and **Bilibili browser saves**. The widget sits below the provider's
-top navigation, can be dragged by its heading, remembers its position, and does
-not intercept clicks outside its own controls.
+The browser extension connects YouTube and Bilibili pages to the Local Music
+Library dashboard running on the same computer. It can check saved status,
+save a link, update a rating, and send queue playback commands. It does not
+download media, capture audio, access provider passwords, or open a new tab for
+each queue item.
 
-## Make the install package
+On provider video pages, a small widget shows saved status and rating controls.
+On home, search, channel, and list pages, unsaved videos get a small save dot.
+Saved videos get a marker beside the title. These controls stay unobtrusive
+until the card is active or hovered. Browser saves go into local playlists
+named **YouTube browser saves** or **Bilibili browser saves**.
 
-Double-click `PackMusicLibraryExtension.bat` in the project folder. It creates:
+## Build the packages
 
-- `dist\local-music-library-player-<version>-chrome.zip`
-- `dist\local-music-library-player-<version>-firefox-zen.xpi`
+Run `PackMusicLibraryExtension.bat` or:
 
-The package builder produces browser-specific manifests: the Chrome archive
-uses Chrome's Manifest V3 service worker and the Firefox/Zen XPI uses Firefox's
-current background-script fallback. Chrome-family browsers still require
-loading the unpacked `extension` folder in Developer mode. The `.xpi` can be
-selected for temporary loading in Zen/Firefox. A permanently installed
-Firefox/Zen extension needs Mozilla signing; that cannot be bypassed by
-packaging it differently.
+```powershell
+powershell -ExecutionPolicy Bypass -File .\PackMusicLibraryExtension.ps1
+```
 
-## Pair it
+The builder creates these files under `dist` using the version in
+`extension/manifest.json`:
 
-1. Start the local manager and open its dashboard.
-2. Build the package with `PackMusicLibraryExtension.bat`, then install it as
-   described below.
-3. The extension automatically reads the pairing token from the local app and
-   detects Firefox/Zen or Chrome once per browser profile. That browser-family
-   value is remembered locally. The Options page can still be used to change
-   the server address or profile label manually, test the connection, or forget
-   this browser's pairing.
-4. Build a queue and click **Open in Library Player**. The extension creates
-   one tab once, then updates that same tab for next/previous tracks.
+- `local-music-library-player-<version>-chrome.zip`
+- `local-music-library-player-<version>-firefox-zen.xpi`
 
-Autoplay can require the initial Play click on YouTube/Bilibili. Live streams,
-unknown durations, unavailable media, and provider/ad/privacy extension blocks
-are reported to the dashboard and leave **Next** as a manual action.
+It removes stale package files before building. The Chrome archive uses a
+service worker. The Firefox/Zen XPI uses the Firefox background-script
+fallback and POSIX paths such as `icons/icon-128.png`.
 
-## Chrome
+The extension's JavaScript, HTML, and CSS are included as readable source. The
+packager does not bundle, minify, or generate extension code. It copies the
+source files and changes the Firefox manifest to select the background-script
+fallback and Firefox metadata. If Mozilla asks for source, provide the
+repository source including `extension/`, `PackMusicLibraryExtension.ps1`, and
+`tools/package_zip.py`. Rebuild both archives with the command above.
 
-1. Open `chrome://extensions`.
-2. Turn on **Developer mode**.
-3. Click **Load unpacked** and select this `extension` folder.
-4. Click **Details** → **Extension options** to pair it.
+## Install and pair
 
-Chrome does not allow local `.zip` files to be permanently installed directly;
-that is a browser security rule. Keep the extracted project folder where it is
-and use **Load unpacked** whenever you want to update the extension.
+Start `MusicLibrary.bat` and leave the terminal open. The local dashboard uses
+`http://127.0.0.1:8765`.
 
-## Zen / Firefox
+The extension normally reads the pairing token from the dashboard
+automatically. Open extension settings to check the server, token, and browser
+connection mode. Select **Zen** if automatic detection reports Firefox. The
+profile label is just a local name and does not choose the browser mode. Use
+**Test connection** to check HTTP and the live-player WebSocket. **Forget this
+browser** clears its pairing and player tab.
+
+To rotate the token, open dashboard **Settings** and choose **Rotate pairing
+token**. Pair each browser profile again after rotation.
+
+### Chrome or Chromium
+
+1. Extract the Chrome ZIP, or use the repository's `extension` folder while
+   developing.
+2. Open `chrome://extensions`.
+3. Turn on **Developer mode**.
+4. Select **Load unpacked** and choose the extracted `extension` folder.
+5. Open the extension's options page to check the pairing.
+
+Chrome does not permanently install a local ZIP directly. Keep the extracted
+folder in place so the browser can load it.
+
+### Zen or Firefox
 
 1. Open `about:debugging#/runtime/this-firefox`.
-2. Click **Load Temporary Add-on**.
-3. Select `dist\local-music-library-player-<version>-firefox-zen.xpi`, or
-   select this folder's `manifest.json`.
-4. Open the extension's **Manage** page → **Preferences** to pair it.
+2. Select **Load Temporary Add-on**.
+3. Choose the current `dist\local-music-library-player-<version>-firefox-zen.xpi`.
+4. Open the extension's **Manage** page, then **Preferences**.
+5. Choose **Zen** if the browser mode is not already correct, then test the
+   connection.
 
-Firefox temporary add-ons disappear after restarting the browser. A signed
-Firefox build can use the same Manifest V3 source later; this private local
-release intentionally does not require publishing it.
+Temporary add-ons are removed when Firefox or Zen restarts. Permanent
+installation requires a Mozilla-signed package. The normal **Install Add-on
+From File** action rejects unsigned XPIs and may call them corrupt.
 
-Do **not** use Zen/Firefox's normal **Install Add-on From File** action for
-this local XPI: normal installation requires an AMO/Mozilla signature and can
-misleadingly show “appears to be corrupt” for an unsigned development package.
+## Queue playback
 
-## Zen local connection troubleshooting
+Build a queue in the dashboard and choose **Play / open in browser**. The
+extension creates one provider tab and reuses it for next and previous tracks.
+The first playback may need a manual Play click because of browser autoplay
+rules. Live videos, unknown durations, unavailable media, ads, or provider and
+privacy extensions can also prevent automatic playback. The dashboard keeps
+manual Next available.
 
-Start `MusicLibrary.bat` first, leave its terminal open, and use exactly
-`http://127.0.0.1:8765` in the extension—**not** `https://` and not `wss://`.
-Normally no token entry is needed: the extension reads `/api/health`
-automatically and stores the local token in extension storage. The Options page
-lets you override the remembered browser connection mode (including Zen) and
-tries both `127.0.0.1` and `localhost` for the WebSocket after HTTP pairing
-succeeds.
-If the terminal prints `WARNING: Invalid HTTP request received`, Zen's
-HTTPS-Only/HTTPS-upgrading feature or another extension is changing the local
-connection into HTTPS. Turn off HTTPS-Only mode for `127.0.0.1` and disable any
-HTTPS-upgrade extension for this local address, then save again. The extension
-now checks the HTTP and WebSocket connection before it claims the profile has
-been paired. If the optional live-player WebSocket still fails, the Options
-page saves the HTTP pairing anyway so saved-status checks, browser saves, and
-ratings can continue working; reload the updated extension after changing its
-permissions.
+## Fix a local connection problem
+
+Use exactly `http://127.0.0.1:8765`, not HTTPS. The extension can fall back to
+`localhost` for the player WebSocket. If the options page says HTTP pairing
+worked but the WebSocket timed out:
+
+1. Confirm `MusicLibrary.bat` is running and the dashboard opens at the loopback
+   address.
+2. Reload the extension after installing an updated package.
+3. In Zen or Firefox, disable HTTPS-Only or HTTPS-upgrade for the loopback
+   address. Disable any extension that rewrites local HTTP requests.
+4. Set the browser mode to **Zen** or **Firefox** explicitly, then use **Test
+   connection**.
+
+HTTP pairing can still support saved-status checks, browser saves, and ratings
+when the player WebSocket is unavailable. Queue playback needs the WebSocket.
+The dashboard shows whether a browser extension has an active player session.
+
+## Privacy and permissions
+
+The extension contacts only the configured loopback Music Library server. It
+sends provider URLs, page titles, uploader text, ratings, and queue commands to
+that local app. It has no developer-operated backend and does not send data to
+a cloud service.
+
+- `tabs` lets the extension reuse and repair its designated player tab.
+- `storage` remembers the local server, pairing token, browser label, player
+  tab, and widget position.
+- YouTube and Bilibili host access lets it read video page details and add the
+  saved-status controls.
+- Loopback access lets it communicate with the local dashboard.
+
+For store metadata and reviewer steps, see [STORE_LISTING.md](STORE_LISTING.md).
+For release checks, see [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
